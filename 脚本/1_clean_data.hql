@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS dwd_interaction_detail (
   watch_ratio        DOUBLE,
   completion_flag    INT,
   like_flag          INT,
+  comment_flag       INT,
+  share_flag         INT,
   event_date         STRING,
   event_hour         INT,
   weekday            INT,
@@ -98,12 +100,14 @@ INSERT OVERWRITE TABLE dwd_interaction_detail PARTITION (dt)
 SELECT
   user_id,
   video_id,
-  ROUND(play_duration / 1000.0, 2)     AS play_duration_sec,
-  ROUND(video_duration / 1000.0, 2)    AS video_duration_sec,
+  ROUND(play_duration / 1000.0, 2)       AS play_duration_sec,
+  ROUND(video_duration / 1000.0, 2)      AS video_duration_sec,
   watch_ratio,
-  IF(watch_ratio >= 1.0, 1, 0)         AS completion_flag,
-  IF(watch_ratio > 2.0, 1, 0)          AS like_flag,
-  CAST(date AS STRING)                  AS event_date,
+  IF(watch_ratio >= 1.0, 1, 0)           AS completion_flag,
+  IF(watch_ratio > 2.0, 1, 0)            AS like_flag,
+  IF(df.comment_cnt > 0, 1, 0)           AS comment_flag,
+  IF(df.share_cnt > 0, 1, 0)             AS share_flag,
+  CAST(date AS STRING)                    AS event_date,
   HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) AS event_hour,
   CAST((FROM_UNIXTIME(CAST(timestamp AS INT), 'u')) AS INT) AS weekday,
   CASE
@@ -112,11 +116,11 @@ SELECT
     WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 12 AND 13 THEN '中午'
     WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 14 AND 17 THEN '下午'
     WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 18 AND 21 THEN '晚间'
-    ELSE '深夜'
+    WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 22 AND 23 THEN '深夜'
   END AS time_period,
-  c.feat                               AS category_ids,
-  CAST(ts AS BIGINT)                    AS ts,
-  CAST(date AS STRING)                  AS dt
+  c.feat                                   AS category_ids,
+  CAST(ts AS BIGINT)                       AS ts,
+  CAST(date AS STRING)                     AS dt
 FROM (
   SELECT *,
     ROW_NUMBER() OVER (
@@ -130,6 +134,15 @@ FROM (
 ) i
 LEFT JOIN ods_raw_item_category c
   ON i.video_id = c.video_id
+LEFT JOIN (
+  SELECT video_id, date,
+    MAX(comment_cnt) AS comment_cnt,
+    MAX(share_cnt)   AS share_cnt
+  FROM ods_raw_item_daily_features
+  WHERE comment_cnt IS NOT NULL OR share_cnt IS NOT NULL
+  GROUP BY video_id, date
+) df
+  ON i.video_id = df.video_id AND i.date = df.date
 WHERE i.rn = 1;
 
 CREATE TABLE IF NOT EXISTS dim_user (
@@ -222,10 +235,12 @@ SELECT
   ROUND(AVG(watch_ratio), 4) AS avg_completion,
   SUM(like_flag)        AS like_count,
   ROUND(
-      AVG(completion_flag) * 0.35
-    + AVG(watch_ratio)    * 0.25
-    + LOG(COUNT(*) + 1)   * 0.20
-    + AVG(like_flag)      * 0.20
+      AVG(completion_flag)          * 0.30
+    + AVG(watch_ratio)              * 0.20
+    + LOG(COUNT(*) + 1)             * 0.15
+    + AVG(like_flag)                * 0.15
+    + AVG(COALESCE(comment_flag,0)) * 0.10
+    + AVG(COALESCE(share_flag,0))   * 0.10
   , 4) AS hot_score,
   dt
 FROM dwd_interaction_detail
@@ -241,8 +256,17 @@ PARTITIONED BY (dt STRING)
 STORED AS ORC
 TBLPROPERTIES ("orc.compress" = "SNAPPY");
 
-SET hive.exec.dynamic.partition = true;
-SET hive.exec.dynamic.partition.mode = nonstrict;
+INSERT OVERWRITE TABLE dws_category_daily_agg PARTITION (dt)
+SELECT
+  CAST(tag_str AS INT) AS tag_id,
+  COUNT(*)              AS play_count,
+  SUM(d.completion_flag) AS completion_count,
+  ROUND(AVG(d.watch_ratio), 4) AS avg_completion,
+  d.dt
+FROM dwd_interaction_detail d
+LATERAL VIEW explode(split(regexp_replace(d.category_ids, '\\[|\\]', ''), ',')) t AS tag_str
+WHERE tag_str IS NOT NULL AND tag_str != ''
+GROUP BY CAST(tag_str AS INT), d.dt;
 
 INSERT OVERWRITE TABLE dws_user_weekly_agg PARTITION (dt)
 SELECT

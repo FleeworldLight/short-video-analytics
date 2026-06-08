@@ -1,0 +1,57 @@
+改动日志
+=======
+日期: 2026-06-08
+
+本次改动聚焦代码与脚本层的 Bug 修复和功能补全，未涉及文档/PPT/截图类交付物。
+
+一、Bug 修复
+-----------
+1. 脚本/4_kpi_retention.hql
+   - 问题: date_diff 收到 '20200705'(yyyyMMdd) 格式字符串无法正确解析
+   - 修复: 在 CTE 中通过 CONCAT + SUBSTR 转换为 DATE 类型再参与计算
+
+2. docker/run.sh
+   - 问题: Step 6 导出 CSV 文件名为 user_retention.csv/content_hot_ranking.csv/
+     influencer_index.csv，但 DashboardService 实际读取 retention.csv/hot_ranking.csv/
+     influencer.csv，文件名不匹配导致后端空数据
+   - 修复: 引入 ADS_MAP 数组做表名→文件名的映射，导出和 MySQL 导入共用同一映射
+   - 问题: Step 6 中 rm -rf 用于删除文件用法不当
+   - 修复: 改为 rm -f
+
+二、DWD 新增互动标记字段
+-------------------------
+1. 脚本/2_create_tables.hql + 1_clean_data.hql
+   - 在 dwd_interaction_detail 中新增 comment_flag INT, share_flag INT
+   - DWD INSERT 中 LEFT JOIN ods_raw_item_daily_features，通过 comment_cnt>0
+     和 share_cnt>0 派生两个标记
+   - 与原有的 like_flag 共同构成完整的"互动标记"三要素，满足试卷要求
+
+三、KPI 公式更新（加入评论/分享权重）
+-----------------------------------
+1. 脚本/5_kpi_hot_ranking.hql — 内容热度排行
+   旧: completion×0.35 + watch×0.25 + LOG(play)×0.20 + like×0.20
+   新: completion×0.30 + watch×0.20 + LOG(play)×0.15 + like×0.15
+       + comment×0.10 + share×0.10
+
+2. 脚本/6_kpi_influencer.hql — 创作者影响力指数
+   旧: completion×0.30 + like×0.30 + LOG(play)×0.40
+   新: completion×0.25 + like×0.15 + comment×0.15 + share×0.10
+       + LOG(play)×0.35
+
+3. 脚本/1_clean_data.hql — dws_video_daily_agg 同步更新
+
+四、补全缺失数据
+---------------
+1. 脚本/1_clean_data.hql — 新增 dws_category_daily_agg 的 INSERT 语句
+   (按 tag_id + dt 聚合播放量/完播数/平均完播率)
+2. docker/run.sh — 新增 dim_date 维表 INSERT（从 DWD 的 dt 字段提取日期维度）
+3. docker/run.sh — 新增周粒度热度排行计算并导出 hot_ranking_weekly.csv
+   (公式与日粒度一致，按自然周聚合)
+
+五、脚本规范性优化
+-----------------
+1. 脚本/3/5/6_kpi_*.hql 开头补充 SET hive.exec.dynamic.partition 等参数
+   (试卷明确要求 KPI 脚本包含必要的参数设置)
+2. 脚本/1_clean_data.hql 去除重复的 SET hive.exec.dynamic.partition（删除2行）
+3. 脚本/1_clean_data.hql time_period CASE 改为显式覆盖 22-23 为'深夜'
+   (原用 ELSE 兜底，语义不够清晰)

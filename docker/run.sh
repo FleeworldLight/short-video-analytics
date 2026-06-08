@@ -79,6 +79,53 @@ docker exec hive-server hive -e "
   ORDER BY play_count DESC;
 "
 
+# ========== Step 5b: Build dim_date ==========
+echo "=== Step 5b: Build dim_date table ==="
+docker exec hive-server hive -e "
+  INSERT OVERWRITE TABLE dim_date
+  SELECT
+    date_id,
+    CAST(SUBSTR(date_id, 1, 4) AS INT) AS year,
+    CAST(SUBSTR(date_id, 5, 2) AS INT) AS month,
+    CAST(SUBSTR(date_id, 7, 2) AS INT) AS day,
+    CAST(FROM_UNIXTIME(UNIX_TIMESTAMP(date_id, 'yyyyMMdd'), 'u') AS INT) AS weekday,
+    CASE WHEN CAST(FROM_UNIXTIME(UNIX_TIMESTAMP(date_id, 'yyyyMMdd'), 'u') AS INT) >= 6 THEN 1 ELSE 0 END AS is_weekend,
+    CASE
+      WHEN CAST(SUBSTR(date_id, 5, 2) AS INT) BETWEEN 1  AND 3  THEN 1
+      WHEN CAST(SUBSTR(date_id, 5, 2) AS INT) BETWEEN 4  AND 6  THEN 2
+      WHEN CAST(SUBSTR(date_id, 5, 2) AS INT) BETWEEN 7  AND 9  THEN 3
+      ELSE 4
+    END AS quarter
+  FROM (
+    SELECT DISTINCT dt AS date_id FROM dwd_interaction_detail
+  ) d
+  ORDER BY date_id;
+"
+
+# ========== Step 5c: Weekly hot ranking ==========
+echo "=== Step 5c: Weekly hot ranking ==="
+docker exec hive-server hive -e "
+  SELECT ROW_NUMBER() OVER (ORDER BY hot_score DESC) AS rank_no,
+         video_id, hot_score, week_start
+  FROM (
+    SELECT d.video_id,
+           CONCAT(SUBSTR(d.dt,1,4), '-W', LPAD(CEIL(CAST(SUBSTR(d.dt,5,2) AS INT)/4),2,'0')) AS week_start,
+           ROUND(
+               AVG(d.completion_flag) * 0.30
+             + AVG(d.watch_ratio)     * 0.20
+             + LOG(COUNT(*) + 1)      * 0.15
+             + AVG(d.like_flag)       * 0.15
+             + AVG(COALESCE(d.comment_flag,0)) * 0.10
+             + AVG(COALESCE(d.share_flag,0))   * 0.10
+           , 4) AS hot_score
+    FROM dwd_interaction_detail d
+    GROUP BY d.video_id,
+             CONCAT(SUBSTR(d.dt,1,4), '-W', LPAD(CEIL(CAST(SUBSTR(d.dt,5,2) AS INT)/4),2,'0'))
+  ) t
+  ORDER BY hot_score DESC
+  LIMIT 50;
+" | sed 's/[\t]/,/g' | tail -n +2 > "$ROOT_DIR/结果数据/hot_ranking_weekly.csv"
+
 echo "ADS table row counts:"
 docker exec hive-server hive -e "
   SELECT 'completion_rate_by_category' AS tbl, COUNT(*) FROM ads_completion_rate_by_category
@@ -96,23 +143,26 @@ docker exec hive-server hive -e "
 
 # ========== Step 6: Export ADS to CSV files ==========
 echo "=== Step 6: Export ADS tables to CSV ==="
-rm -rf "$ROOT_DIR/结果数据"/*.csv
+rm -f "$ROOT_DIR/结果数据"/*.csv
 
-ADS_TABLES=(
-  "completion_rate_by_category"
-  "completion_rate_by_author"
-  "user_retention"
-  "content_hot_ranking"
-  "influencer_index"
-  "time_period_analysis"
+# Table-to-filename mapping (short names matching DashboardService)
+ADS_MAP=(
+  "completion_rate_by_category:completion_rate_by_category"
+  "completion_rate_by_author:completion_rate_by_author"
+  "user_retention:retention"
+  "content_hot_ranking:hot_ranking"
+  "influencer_index:influencer"
+  "time_period_analysis:time_period_analysis"
 )
 
-for tbl in "${ADS_TABLES[@]}"; do
-  echo "Exporting $tbl ..."
+for entry in "${ADS_MAP[@]}"; do
+  tbl="${entry%%:*}"
+  csv_name="${entry#*:}"
+  echo "Exporting $tbl -> $csv_name.csv ..."
   docker exec hive-server hive -e "SELECT * FROM ads_$tbl" \
     | sed 's/[\t]/,/g' \
     | tail -n +2 \
-    > "$ROOT_DIR/结果数据/$tbl.csv"
+    > "$ROOT_DIR/结果数据/$csv_name.csv"
 done
 
 echo "CSV files generated:"
@@ -156,8 +206,10 @@ docker exec mysql mysql -h localhost -p123456 -e "
   SHOW TABLES;
 "
 
-for tbl in "${ADS_TABLES[@]}"; do
-  CSV="/import/$tbl.csv"
+for entry in "${ADS_MAP[@]}"; do
+  tbl="${entry%%:*}"
+  csv_name="${entry#*:}"
+  CSV="/import/$csv_name.csv"
   echo "Loading $CSV into ads_$tbl ..."
   docker exec mysql mysql -h localhost -p123456 short_video \
     -e "LOAD DATA LOCAL INFILE '$CSV' INTO TABLE ads_$tbl FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n';"

@@ -1,3 +1,6 @@
+SET hive.exec.dynamic.partition = true;
+SET hive.exec.dynamic.partition.mode = nonstrict;
+
 INSERT OVERWRITE TABLE ads_influencer_index
 SELECT
   ROW_NUMBER() OVER (ORDER BY influence_score DESC) AS rank_no,
@@ -9,13 +12,15 @@ SELECT
 FROM (
   SELECT
     v.uploader_id,
-    COUNT(*)                    AS total_plays,
-    ROUND(AVG(d.completion_flag), 4) AS avg_completion,
-    ROUND(AVG(d.like_flag), 4)       AS avg_interaction,
+    COUNT(*)                           AS total_plays,
+    ROUND(AVG(d.completion_flag), 4)   AS avg_completion,
+    ROUND((AVG(d.like_flag) + AVG(COALESCE(d.comment_flag,0)) + AVG(COALESCE(d.share_flag,0))) / 3, 4) AS avg_interaction,
     ROUND(
-        AVG(d.completion_flag) * 0.3
-      + AVG(d.like_flag)       * 0.3
-      + LOG(COUNT(*) + 1)      * 0.4
+        AVG(d.completion_flag)               * 0.25
+      + AVG(d.like_flag)                     * 0.15
+      + AVG(COALESCE(d.comment_flag,0))      * 0.15
+      + AVG(COALESCE(d.share_flag,0))        * 0.10
+      + LOG(COUNT(*) + 1)                    * 0.35
     , 4) AS influence_score
   FROM dwd_interaction_detail d
   JOIN dim_video v ON d.video_id = v.video_id

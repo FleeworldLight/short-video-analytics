@@ -1,3 +1,6 @@
+SET hive.exec.dynamic.partition = true;
+SET hive.exec.dynamic.partition.mode = nonstrict;
+
 INSERT OVERWRITE TABLE ads_completion_rate_by_category
 SELECT
   c.tag_name,

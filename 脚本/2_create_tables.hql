@@ -150,6 +150,8 @@ CREATE TABLE IF NOT EXISTS dwd_interaction_detail (
   watch_ratio        DOUBLE,
   completion_flag    INT,
   like_flag          INT,
+  comment_flag       INT,
+  share_flag         INT,
   event_date         STRING,
   event_hour         INT,
   weekday            INT,
