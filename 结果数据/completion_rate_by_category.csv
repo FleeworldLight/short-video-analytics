@@ -1,0 +1,15 @@
+tag_name,total_plays,total_completions,completion_rate
+Agriculture,1,1,1.0
+Gaming,2,2,1.0
+Other,1,1,1.0
+Film,7,5,0.7143
+Life,16,10,0.625
+Cars,2,1,0.5
+Music,6,3,0.5
+Fashion,10,5,0.5
+Comedy,6,3,0.5
+Food,6,3,0.5
+Sports,2,1,0.5
+Entertainment,6,2,0.3333
+News,7,2,0.2857
+Photography,2,0,0.0

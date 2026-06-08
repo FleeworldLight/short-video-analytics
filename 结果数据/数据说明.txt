@@ -1,0 +1,24 @@
+结果数据目录说明
+===================
+本目录存放 KPI 指标计算结果（CSV 格式），由下面的脚本按数据流自动生成：
+
+  run_pipeline.py（已删除，为一次性脚本）
+
+生成流程对应 Hive 数仓的 ODS→DWD→DWS→ADS 四层处理逻辑。
+
+文件列表：
+  completion_rate_by_category.csv  - KPI 1a: 按类别完播率（基于视频所属标签聚合）
+  completion_rate_by_author.csv    - KPI 1b: 按创作者完播率（基于上传者聚合）
+  retention.csv                    - KPI 2:   用户留存率（次日/7日/30日）
+  hot_ranking.csv                  - KPI 3:   内容热度排行 Top 50
+  influencer.csv                   - KPI 4:   创作者影响力指数排行 Top 20
+  time_period_analysis.csv         - 附加:    时段播放分析（6个时段）
+
+处理逻辑：
+  1. 数据清洗（DWD）: 过滤 play_duration<=0 或 video_duration<=0 或播放时长>3倍视频时长的异常值，
+     按 user_id+video_id+date 去重（保留最大 timestamp），衍生 completion_flag/like_flag/time_period 等字段
+  2. 维度表（DIM）: 从原始数据构建 dim_user, dim_video, dim_category, dim_creator
+  3. 轻度聚合（DWS）: 按 video+date 聚合播放次数/完播数/点赞数，计算热度分
+  4. 指标计算（ADS）: 严格按 HiveQL 公式算出 6 个 KPI
+
+数据来源：数据样例/ 中的 4 个 CSV 文件（KuaiRec 2.0 数据集前 100 条样本）

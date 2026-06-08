@@ -1,0 +1,198 @@
+version: "3.8"
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    hostname: namenode
+    container_name: namenode
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    environment:
+      - CLUSTER_NAME=short_video
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - HDFS_CONF_dfs_replication=1
+      - HDFS_CONF_dfs_permissions_enabled=false
+    volumes:
+      - namenode:/hadoop/dfs/name
+      - ../数据样例:/data/samples
+    networks:
+      - hadoop-net
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    hostname: datanode
+    container_name: datanode
+    depends_on:
+      - namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SERVICE_PRECONDITION=namenode:9870
+    volumes:
+      - datanode:/hadoop/dfs/data
+    networks:
+      - hadoop-net
+
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    hostname: resourcemanager
+    container_name: resourcemanager
+    depends_on:
+      - namenode
+      - datanode
+    ports:
+      - "8088:8088"
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - YARN_CONF_yarn_resourcemanager_hostname=resourcemanager
+      - SERVICE_PRECONDITION=namenode:9870 datanode:9864
+    networks:
+      - hadoop-net
+
+  nodemanager:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    hostname: nodemanager
+    container_name: nodemanager
+    depends_on:
+      - resourcemanager
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - YARN_CONF_yarn_nodemanager_resource_memory_mb=4096
+      - YARN_CONF_yarn_nodemanager_resource_cpu_vcores=2
+      - SERVICE_PRECONDITION=resourcemanager:8088
+    networks:
+      - hadoop-net
+
+  spark-master:
+    image: bitnami/spark:3.5.0
+    hostname: spark-master
+    container_name: spark-master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_MASTER_HOST=spark-master
+    networks:
+      - hadoop-net
+
+  spark-worker:
+    image: bitnami/spark:3.5.0
+    hostname: spark-worker
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=4G
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    networks:
+      - hadoop-net
+
+  hive-metastore:
+    image: apache/hive:4.0.0
+    hostname: hive-metastore
+    container_name: hive-metastore
+    ports:
+      - "9083:9083"
+    depends_on:
+      - namenode
+      - hive-db
+    environment:
+      - SERVICE_NAME=metastore
+      - DB_DRIVER=postgresql
+      - METASTORE_DB_HOSTNAME=hive-db
+      - METASTORE_DB_PORT=5432
+      - METASTORE_DB_NAME=metastore
+      - METASTORE_DB_USER=hive
+      - METASTORE_DB_PASSWORD=hive
+      - HIVE_CONF_javax_jdo_option_ConnectionURL=jdbc:postgresql://hive-db:5432/metastore
+      - HIVE_CONF_javax_jdo_option_ConnectionDriverName=org.postgresql.Driver
+      - HIVE_CONF_javax_jdo_option_ConnectionUserName=hive
+      - HIVE_CONF_javax_jdo_option_ConnectionPassword=hive
+      - SERVICE_PRECONDITION=namenode:9870
+    volumes:
+      - ../脚本:/scripts
+      - ../数据样例:/data/samples
+    networks:
+      - hadoop-net
+
+  hive-server:
+    image: apache/hive:4.0.0
+    hostname: hive-server
+    container_name: hive-server
+    depends_on:
+      - hive-metastore
+      - hive-db
+    ports:
+      - "10000:10000"
+    environment:
+      - SERVICE_NAME=hiveserver2
+      - DB_DRIVER=postgresql
+      - METASTORE_DB_HOSTNAME=hive-db
+      - METASTORE_DB_PORT=5432
+      - METASTORE_DB_NAME=metastore
+      - METASTORE_DB_USER=hive
+      - METASTORE_DB_PASSWORD=hive
+      - HIVE_CONF_javax_jdo_option_ConnectionURL=jdbc:postgresql://hive-db:5432/metastore
+      - HIVE_CONF_javax_jdo_option_ConnectionDriverName=org.postgresql.Driver
+      - HIVE_CONF_javax_jdo_option_ConnectionUserName=hive
+      - HIVE_CONF_javax_jdo_option_ConnectionPassword=hive
+      - SERVICE_PRECONDITION=hive-metastore:9083
+    volumes:
+      - ../脚本:/scripts
+      - ../数据样例:/data/samples
+      - ../结果数据:/results
+    networks:
+      - hadoop-net
+
+  hive-db:
+    image: postgres:15
+    hostname: hive-db
+    container_name: hive-db
+    environment:
+      - POSTGRES_USER=hive
+      - POSTGRES_PASSWORD=hive
+      - POSTGRES_DB=metastore
+    volumes:
+      - hive-db:/var/lib/postgresql/data
+    networks:
+      - hadoop-net
+
+  mysql:
+    image: mysql:8.0
+    hostname: mysql
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=short_video
+      - MYSQL_CHARACTER_SET_SERVER=utf8
+      - MYSQL_COLLATION_SERVER=utf8_general_ci
+      - MYSQL_INIT_CONNECT='SET GLOBAL local_infile=1'
+    command: ["mysqld", "--local-infile=1"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../结果数据:/import
+    networks:
+      - hadoop-net
+
+volumes:
+  namenode:
+  datanode:
+  hive-db:
+  mysql-data:
+
+networks:
+  hadoop-net:
+    driver: bridge

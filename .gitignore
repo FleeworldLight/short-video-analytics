@@ -1,0 +1,23 @@
+# Maven
+可视化源码/dashboard/target/
+可视化源码/dashboard/*.jar
+可视化源码/dashboard/pom.xml.tag
+可视化源码/dashboard/pom.xml.releaseBackup
+可视化源码/dashboard/pom.xml.versionsBackup
+可视化源码/dashboard/pom.xml.next
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
