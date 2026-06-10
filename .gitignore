@@ -26,3 +26,6 @@ __pycache__/
 结果数据/
 临时/
 *.zip
+
+# Local-only docs
+文档/改动日志.md
