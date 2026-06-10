@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>短视频平台内容分析系统 - 预览</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; padding: 20px; }
+        .header { text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 12px; margin-bottom: 20px; }
+        .header h1 { font-size: 28px; margin-bottom: 8px; }
+        .header p { font-size: 14px; opacity: .85; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; }
+        .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+        .card h2 { font-size: 18px; color: #333; margin-bottom: 16px; padding-left: 12px; border-left: 4px solid #667eea; }
+        .chart { width: 100%; height: 400px; }
+        @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+        .tip { text-align: center; background: #fffbe6; border: 1px solid #ffe58f; border-radius: 6px; padding: 8px 16px; margin-bottom: 16px; font-size: 13px; color: #ad8b00; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1>短视频平台内容分析系统</h1>
+    <p>基于 KuaiRec 数据集 · 数仓 ODS/DWD/DWS/ADS 四层架构</p>
+</div>
+<div class="tip">预览模式 · 数据为基于 KuaiRec 样本生成的模拟数据</div>
+<div class="grid">
+    <div class="card"><h2>完播率分布（按类别）</h2><div id="chart1" class="chart"></div></div>
+    <div class="card"><h2>用户留存率曲线</h2><div id="chart2" class="chart"></div></div>
+    <div class="card"><h2>内容热度排行 Top 30</h2><div id="chart3" class="chart"></div></div>
+    <div class="card"><h2>创作者影响力指数排行</h2><div id="chart4" class="chart"></div></div>
+    <div class="card"><h2>时段播放分析</h2><div id="chart5" class="chart"></div></div>
+    <div class="card"><h2>创作者完播率排行 Top 20</h2><div id="chart6" class="chart"></div></div>
+</div>
+<script>
+const MOCK = {
+    completionCategory: [
+        { tagName: 'Animals',   completionRate: 0.62, totalPlays: 2847 },
+        { tagName: 'Comedy',    completionRate: 0.58, totalPlays: 5632 },
+        { tagName: 'Gaming',    completionRate: 0.53, totalPlays: 8921 },
+        { tagName: 'Food',      completionRate: 0.51, totalPlays: 4103 },
+        { tagName: 'Music',     completionRate: 0.47, totalPlays: 7234 },
+        { tagName: 'Life',      completionRate: 0.44, totalPlays: 3912 },
+        { tagName: 'Sports',    completionRate: 0.42, totalPlays: 5176 },
+        { tagName: 'Knowledge', completionRate: 0.38, totalPlays: 2245 },
+        { tagName: 'Fashion',   completionRate: 0.35, totalPlays: 3198 },
+        { tagName: 'Film',      completionRate: 0.31, totalPlays: 6589 },
+        { tagName: 'Cars',      completionRate: 0.28, totalPlays: 1876 },
+        { tagName: 'News',      completionRate: 0.24, totalPlays: 2654 }
+    ],
+    retention: (() => {
+        const r = [];
+        for (let i = 1; i <= 30; i++) {
+            const d = new Date(2020, 6, i);
+            r.push({
+                reportDate: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
+                dau: Math.round(800 + Math.random() * 400),
+                day1Retention: 0.35 + Math.random() * 0.05 - 0.01 * i / 30,
+                day7Retention: 0.18 + Math.random() * 0.04 - 0.005 * i / 30,
+                day30Retention: 0.08 + Math.random() * 0.03 - 0.003 * i / 30
+            });
+        }
+        return r;
+    })(),
+    hotRanking: (() => {
+        const r = [];
+        for (let i = 1; i <= 30; i++) {
+            r.push({ rankNo: i, videoId: Math.floor(9000 + Math.random() * 1000), hotScore: +(3.5 - i * 0.08 + Math.random() * 0.1).toFixed(4), dt: '20200720' });
+        }
+        return r;
+    })(),
+    influencer: (() => {
+        const r = [];
+        for (let i = 1; i <= 20; i++) {
+            r.push({ rankNo: i, uploaderId: Math.floor(100 + Math.random() * 900), totalPlays: Math.round(5000 - i * 200 + Math.random() * 500), avgCompletion: +(0.55 - i * 0.012 + Math.random() * 0.02).toFixed(4), avgInteraction: +(0.35 - i * 0.008 + Math.random() * 0.02).toFixed(4), influenceScore: +(2.8 - i * 0.08 + Math.random() * 0.1).toFixed(4) });
+        }
+        return r;
+    })(),
+    timePeriod: [
+        { timePeriod: '晚间', playCount: 4231, avgWatchRatio: 0.52 },
+        { timePeriod: '下午', playCount: 3856, avgWatchRatio: 0.48 },
+        { timePeriod: '中午', playCount: 3214, avgWatchRatio: 0.45 },
+        { timePeriod: '上午', playCount: 2789, avgWatchRatio: 0.43 },
+        { timePeriod: '深夜', playCount: 1658, avgWatchRatio: 0.39 },
+        { timePeriod: '凌晨', playCount: 892,  avgWatchRatio: 0.35 }
+    ],
+    completionAuthor: (() => {
+        const r = [];
+        for (let i = 1; i <= 20; i++) {
+            r.push({ uploaderId: Math.floor(100 + Math.random() * 900), totalPlays: Math.round(3000 - i * 120 + Math.random() * 300), avgCompletionRate: +(0.65 - i * 0.018 + Math.random() * 0.02).toFixed(4) });
+        }
+        return r;
+    })()
+};
+
+// Chart 1
+(function() {
+    const data = MOCK.completionCategory;
+    const chart = echarts.init(document.getElementById('chart1'));
+    chart.setOption({
+        tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>完播率: ${p[0].value}%<br/>播放量: ${data[p[0].dataIndex].totalPlays}` },
+        xAxis: { type: 'category', data: data.map(d => d.tagName), axisLabel: { rotate: 45 } },
+        yAxis: { type: 'value', name: '完播率', axisLabel: { formatter: '{value}%' }, max: 80 },
+        series: [{ type: 'bar', data: data.map(d => (d.completionRate * 100).toFixed(1)), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1, [{offset:0,color:'#667eea'},{offset:1,color:'#764ba2'}]) } }]
+    });
+})();
+
+// Chart 2
+(function() {
+    const data = MOCK.retention;
+    const chart = echarts.init(document.getElementById('chart2'));
+    chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['次日留存', '7日留存', '30日留存'] },
+        xAxis: { type: 'category', data: data.map(d => d.reportDate) },
+        yAxis: { type: 'value', name: '留存率', axisLabel: { formatter: '{value}%' } },
+        series: [
+            { name: '次日留存', type: 'line', data: data.map(d => (d.day1Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#667eea' }, areaStyle: { opacity: 0.1 } },
+            { name: '7日留存', type: 'line', data: data.map(d => (d.day7Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#f09b22' }, areaStyle: { opacity: 0.1 } },
+            { name: '30日留存', type: 'line', data: data.map(d => (d.day30Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#52c41a' }, areaStyle: { opacity: 0.1 } }
+        ]
+    });
+})();
+
+// Chart 3
+(function() {
+    const data = MOCK.hotRanking;
+    const chart = echarts.init(document.getElementById('chart3'));
+    chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'value', name: '热度分' },
+        yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse() },
+        series: [{ type: 'bar', data: data.map(d => d.hotScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#f09b22'},{offset:1,color:'#f56565'}]) } }]
+    });
+})();
+
+// Chart 4
+(function() {
+    const data = MOCK.influencer;
+    const chart = echarts.init(document.getElementById('chart4'));
+    chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'value', name: '影响力分' },
+        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        series: [{ type: 'bar', data: data.map(d => d.influenceScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#48bb78'},{offset:1,color:'#38b2ac'}]) } }]
+    });
+})();
+
+// Chart 5
+(function() {
+    const data = MOCK.timePeriod;
+    const chart = echarts.init(document.getElementById('chart5'));
+    chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: data.map(d => d.timePeriod) },
+        yAxis: { type: 'value', name: '播放量' },
+        series: [{ type: 'bar', data: data.map(d => d.playCount), itemStyle: { color: function(p) { const c = ['#667eea','#f09b22','#48bb78','#f56565','#9f7aea','#38b2ac']; return c[p.dataIndex]; } } }]
+    });
+})();
+
+// Chart 6
+(function() {
+    const data = MOCK.completionAuthor;
+    const chart = echarts.init(document.getElementById('chart6'));
+    chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'value', name: '完播率', axisLabel: { formatter: '{value}%' } },
+        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        series: [{ type: 'bar', data: data.map(d => (d.avgCompletionRate * 100).toFixed(1)).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#9f7aea'},{offset:1,color:'#667eea'}]) } }]
+    });
+})();
+</script>
+</body>
+</html>

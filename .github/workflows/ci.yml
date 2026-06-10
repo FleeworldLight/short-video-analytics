@@ -1,0 +1,83 @@
+name: CI - Docker Smoke Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download KuaiRec data from Zenodo
+        run: |
+          echo "Downloading KuaiRec.zip (~1.5GB)..."
+          wget -q --show-progress \
+            "https://zenodo.org/records/18164998/files/KuaiRec.zip?download=1" \
+            -O /tmp/KuaiRec.zip
+          echo "Extracting..."
+          unzip -q /tmp/KuaiRec.zip -d /tmp/kuaircextract
+          mkdir -p 数据样例
+          cp /tmp/kuaircextract/"KuaiRec 2.0"/data/*.csv 数据样例/
+          rm -f /tmp/KuaiRec.zip
+          echo "Data files:"
+          ls -lh 数据样例/
+
+      - name: Start Docker cluster
+        run: |
+          docker compose -f docker/docker-compose.yml up -d
+          echo "Waiting for containers to start..."
+          docker compose -f docker/docker-compose.yml ps
+
+      - name: Wait for services to be ready
+        run: sleep 90
+
+      - name: Check HDFS - namenode report
+        run: docker exec namenode hdfs dfsadmin -report
+
+      - name: Check HDFS - basic operations
+        run: |
+          docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_interaction
+          docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_item_category
+          docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_user_feature
+          docker exec namenode hdfs dfs -ls /data/short_video/raw/
+          echo "HDFS OK"
+
+      - name: Upload data to HDFS
+        run: |
+          docker exec namenode hdfs dfs -put -f /data/samples/big_matrix.csv \
+            /data/short_video/raw/ods_interaction/
+          docker exec namenode hdfs dfs -put -f /data/samples/item_categories.csv \
+            /data/short_video/raw/ods_item_category/
+          docker exec namenode hdfs dfs -put -f /data/samples/user_features.csv \
+            /data/short_video/raw/ods_user_feature/
+          docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
+          echo "Upload OK"
+
+      - name: Check Hive metastore
+        run: |
+          docker exec hive-server hive -e "SHOW DATABASES;"
+          echo "Hive OK"
+
+      - name: Check Spark master UI
+        run: |
+          curl -sf http://localhost:8080 > /dev/null && echo "Spark Master OK"
+
+      - name: Run basic Hive query
+        run: |
+          docker exec hive-server hive -e "
+            CREATE TABLE IF NOT EXISTS test_ci (id INT, name STRING)
+            ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+            SHOW TABLES;
+            DROP TABLE test_ci;
+          "
+          echo "Hive query OK"
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v

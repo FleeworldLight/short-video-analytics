@@ -11,7 +11,7 @@ echo ""
 # ========== Step 1: Start cluster ==========
 echo "=== Step 1: Starting Docker cluster ==="
 cd "$(dirname "$0")"
-docker-compose up -d
+docker compose up -d
 echo "Waiting for services to be ready ..."
 sleep 25
 
