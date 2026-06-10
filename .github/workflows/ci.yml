@@ -28,14 +28,23 @@ jobs:
           echo "Data files:"
           ls -lh 数据样例/
 
-      - name: Start Docker cluster
+      - name: Start Docker cluster (essential services only)
         run: |
-          docker compose -f docker/docker-compose.yml up -d
+          docker compose -f docker/docker-compose.yml up -d \
+            namenode datanode hive-db hive-metastore hive-server mysql spark-master
           echo "Waiting for containers to start..."
           docker compose -f docker/docker-compose.yml ps
 
       - name: Wait for services to be ready
-        run: sleep 90
+        run: sleep 120
+
+      - name: Diagnose - show running containers
+        run: |
+          docker ps -a --format "table {{.Names}}\t{{.Status}}"
+          for c in namenode datanode hive-metastore hive-server; do
+            echo "--- $c logs (tail 20) ---"
+            docker logs "$c" 2>&1 | tail -20 || true
+          done
 
       - name: Check HDFS - namenode report
         run: docker exec namenode hdfs dfsadmin -report
@@ -50,16 +59,16 @@ jobs:
 
       - name: Upload data to HDFS
         run: |
-          docker exec namenode hdfs dfs -put -f /data/samples/big_matrix.csv \
+          docker exec namenode hdfs dfs -put -f /data/samples/big_matrix_sample.csv \
             /data/short_video/raw/ods_interaction/
-          docker exec namenode hdfs dfs -put -f /data/samples/item_categories.csv \
+          docker exec namenode hdfs dfs -put -f /data/samples/item_categories_sample.csv \
             /data/short_video/raw/ods_item_category/
-          docker exec namenode hdfs dfs -put -f /data/samples/user_features.csv \
+          docker exec namenode hdfs dfs -put -f /data/samples/user_features_raw_sample.csv \
             /data/short_video/raw/ods_user_feature/
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
           echo "Upload OK"
 
-      - name: Check Hive metastore
+      - name: Check Hive
         run: |
           docker exec hive-server hive -e "SHOW DATABASES;"
           echo "Hive OK"
