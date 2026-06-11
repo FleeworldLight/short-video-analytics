@@ -29,15 +29,12 @@ jobs:
           wget -q -O KuaiRec.zip \
             "https://zenodo.org/records/18164998/files/KuaiRec.zip?download=1"
           ls -lh KuaiRec.zip
-          unzip -q KuaiRec.zip -d kuairc
-          echo "=== KuaiRec file structure ==="
-          find kuairc -type f -name "*.csv" | sort
-          echo "=== Extracting to correct path ==="
-          if [ -d "kuairc/KuaiRec" ]; then
-            mv kuairc/KuaiRec/* kuairc/ && rm -rf kuairc/KuaiRec
-          fi
+          unzip -q KuaiRec.zip
+          echo "=== KuaiRec original file structure ==="
+          find . -maxdepth 3 -name "*.csv" | sort
+          mv "KuaiRec 2.0" kuairc
           echo "=== Final files ==="
-          ls -la kuairc/
+          ls -la kuairc/data/
 
       - name: Download PostgreSQL JDBC driver
         run: |
