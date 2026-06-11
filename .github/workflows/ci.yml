@@ -14,102 +14,90 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download KuaiRec data from Zenodo
+      - name: Download PostgreSQL JDBC driver
         run: |
-          echo "Downloading KuaiRec.zip (~1.5GB)..."
-          wget -q --show-progress \
-            "https://zenodo.org/records/18164998/files/KuaiRec.zip?download=1" \
-            -O /tmp/KuaiRec.zip
-          echo "Extracting..."
-          unzip -q /tmp/KuaiRec.zip -d /tmp/kuaircextract
-          mkdir -p 数据样例
-          cp /tmp/kuaircextract/"KuaiRec 2.0"/data/*.csv 数据样例/
-          rm -f /tmp/KuaiRec.zip
-          echo "Data files:"
-          ls -lh 数据样例/
-
-      - name: Download PostgreSQL JDBC driver for Hive
-        run: |
+          echo "=== Downloading PostgreSQL JDBC driver ==="
           curl -sL -o docker/postgresql-42.5.1.jar \
             "https://jdbc.postgresql.org/download/postgresql-42.5.1.jar"
           file docker/postgresql-42.5.1.jar
           ls -lh docker/postgresql-42.5.1.jar
 
-      - name: Start Docker cluster (essential services only)
+      - name: Start Docker cluster
         run: |
           docker compose -f docker/docker-compose.yml up -d --wait \
             namenode datanode hive-db hive-metastore hive-server mysql spark-master
-          docker compose -f docker/docker-compose.yml ps
+          echo "=== All containers ==="
+          docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
-      - name: Wait for HDFS (namenode)
+      - name: Wait for HDFS and create directories
         run: |
-          echo "Waiting for namenode..."
+          echo "=== Waiting for HDFS ==="
           for i in $(seq 1 30); do
-            if docker exec namenode hdfs dfsadmin -report &>/dev/null; then
-              echo "Namenode ready"
+            if docker exec namenode hdfs dfsadmin -report 2>&1; then
+              echo "HDFS ready after ${i} attempts"
               break
             fi
-            echo "Attempt $i/30 - not ready yet, sleeping 10s..."
+            echo "Attempt $i/30 - sleeping 10s..."
             sleep 10
           done
-          if ! docker exec namenode hdfs dfsadmin -report &>/dev/null; then
-            echo "Namenode failed to start"
-            docker logs namenode --tail 30
-            exit 1
-          fi
-
-      - name: Prepare HDFS directories
-        run: |
           docker exec namenode hdfs dfs -mkdir -p /user/hive/warehouse
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_interaction
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_item_category
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_user_feature
-          docker exec namenode hdfs dfs -ls -R /user/hive/ /data/short_video/raw/
-          echo "HDFS directories OK"
+          echo "=== HDFS directories ==="
+          docker exec namenode hdfs dfs -ls -R /
 
-      - name: Upload data to HDFS
+      - name: Upload sample data to HDFS
         run: |
+          echo "=== Uploading data ==="
           docker exec namenode hdfs dfs -put -f /data/samples/big_matrix_sample.csv \
             /data/short_video/raw/ods_interaction/
           docker exec namenode hdfs dfs -put -f /data/samples/item_categories_sample.csv \
             /data/short_video/raw/ods_item_category/
           docker exec namenode hdfs dfs -put -f /data/samples/user_features_raw_sample.csv \
             /data/short_video/raw/ods_user_feature/
+          echo "=== Uploaded files ==="
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
-          echo "Upload OK"
 
-      - name: Verify Hive Server is healthy
+      - name: Verify Hive metastore
         run: |
-          for i in $(seq 1 6); do
-            if docker exec hive-server hive -e "SHOW DATABASES;" &>/dev/null; then
-              echo "Hive Server OK"
+          echo "=== Hive metastore logs ==="
+          docker logs hive-metastore --tail 30 2>&1 || true
+          echo "=== Testing Hive CLI through metastore ==="
+          docker exec hive-metastore hive -e "SHOW DATABASES;" 2>&1
+
+      - name: Verify HiveServer2
+        run: |
+          echo "=== HiveServer2 logs ==="
+          docker logs hive-server --tail 30 2>&1 || true
+          echo "=== Testing HiveServer2 ==="
+          for i in $(seq 1 12); do
+            if docker exec hive-server hive -e "SHOW DATABASES;" 2>&1; then
+              echo "HiveServer2 ready after ${i} attempts"
               exit 0
             fi
-            echo "Attempt $i/6 - waiting 10s..."
+            echo "Attempt $i/12 - sleeping 10s..."
             sleep 10
           done
-          echo "Hive Server failed"
-          docker logs hive-server --tail 50
-          docker logs hive-metastore --tail 20
+          echo "=== HiveServer2 failed - dumping all logs ==="
+          docker logs hive-server --tail 100 2>&1 || true
+          docker logs hive-metastore --tail 50 2>&1 || true
           exit 1
-
-      - name: Diagnose - show running containers
-        run: |
-          docker ps -a --format "table {{.Names}}\t{{.Status}}"
-
-      - name: Check Spark master UI
-        run: |
-          curl -sf http://localhost:8080 > /dev/null && echo "Spark Master OK"
 
       - name: Run basic Hive query
         run: |
+          echo "=== Creating test table ==="
           docker exec hive-server hive -e "
             CREATE TABLE IF NOT EXISTS test_ci (id INT, name STRING)
             ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
             SHOW TABLES;
             DROP TABLE test_ci;
-          "
+          " 2>&1
           echo "Hive query OK"
+
+      - name: Check Spark master UI
+        run: |
+          curl -sf http://localhost:8080 > /dev/null && echo "Spark Master OK"
 
       - name: Cleanup
         if: always()
