@@ -114,14 +114,20 @@ jobs:
       - name: Wait for HiveServer2
         run: |
           echo "=== Waiting for HiveServer2 ==="
-          for i in $(seq 1 24); do
+          MAX=36
+          for i in $(seq 1 $MAX); do
             if docker exec hive-server \
               beeline -u jdbc:hive2://localhost:10000 -n hive \
               -e "SHOW DATABASES;" 2>&1 > /dev/null; then
               echo "HiveServer2 ready after ${i} attempts"
               break
             fi
-            echo "Attempt $i/24 - sleeping 10s..."
+            if [ "$i" -eq "$MAX" ]; then
+              echo "HiveServer2 failed to start after ${MAX} attempts"
+              docker logs hive-server --tail 20 2>&1
+              exit 1
+            fi
+            echo "Attempt $i/$MAX - sleeping 10s..."
             docker logs hive-server --tail 3 2>&1 || true
             sleep 10
           done
