@@ -60,10 +60,11 @@ jobs:
 
       - name: Prepare HDFS directories
         run: |
+          docker exec namenode hdfs dfs -mkdir -p /user/hive/warehouse
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_interaction
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_item_category
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_user_feature
-          docker exec namenode hdfs dfs -ls /data/short_video/raw/
+          docker exec namenode hdfs dfs -ls -R /user/hive/ /data/short_video/raw/
           echo "HDFS directories OK"
 
       - name: Upload data to HDFS
@@ -77,24 +78,20 @@ jobs:
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
           echo "Upload OK"
 
-      - name: Wait for Hive Server
+      - name: Verify Hive Server is healthy
         run: |
-          echo "Waiting for hive-server to be healthy..."
-          for i in $(seq 1 36); do
+          for i in $(seq 1 6); do
             if docker exec hive-server hive -e "SHOW DATABASES;" &>/dev/null; then
-              echo "Hive Server ready"
-              break
+              echo "Hive Server OK"
+              exit 0
             fi
-            echo "Attempt $i/36 - not ready, sleeping 10s..."
-            docker logs hive-server --tail 5 2>&1 || true
+            echo "Attempt $i/6 - waiting 10s..."
             sleep 10
           done
-          if ! docker exec hive-server hive -e "SHOW DATABASES;" &>/dev/null; then
-            echo "Hive Server failed to start"
-            docker logs hive-server --tail 50
-            docker logs hive-metastore --tail 20
-            exit 1
-          fi
+          echo "Hive Server failed"
+          docker logs hive-server --tail 50
+          docker logs hive-metastore --tail 20
+          exit 1
 
       - name: Diagnose - show running containers
         run: |

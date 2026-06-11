@@ -127,6 +127,7 @@ services:
     environment:
       - SERVICE_NAME=hiveserver2
       - IS_RESUME=true
+      - HADOOP_CLIENT_OPTS=-Dhive.metastore.uris=thrift://hive-metastore:9083
       - SERVICE_OPTS=-Dhive.metastore.uris=thrift://hive-metastore:9083
     healthcheck:
       test: ["CMD", "/opt/hive/bin/hive", "-e", "SHOW DATABASES;"]
