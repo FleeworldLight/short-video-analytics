@@ -27,5 +27,8 @@ __pycache__/
 临时/
 *.zip
 
+# JDBC driver (downloaded at CI time)
+*.jar
+
 # Local-only docs
 文档/改动日志.md

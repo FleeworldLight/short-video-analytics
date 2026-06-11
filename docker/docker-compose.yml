@@ -115,6 +115,7 @@ services:
       retries: 10
       start_period: 60s
     volumes:
+      - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
       - ../脚本:/scripts
       - ../数据样例:/data/samples
     networks:
@@ -150,6 +151,7 @@ services:
       retries: 12
       start_period: 120s
     volumes:
+      - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
       - ../脚本:/scripts
       - ../数据样例:/data/samples
       - ../结果数据:/results
