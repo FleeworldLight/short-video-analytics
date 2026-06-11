@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      skip-kpi:
+        description: '跳过 ETL+KPI 全流程，仅部署 Pages（使用 FALLBACK 模拟数据）'
+        type: boolean
+        default: false
 
 jobs:
   etl-and-deploy:
@@ -24,6 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download KuaiRec dataset
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Downloading KuaiRec 2.0 from Zenodo ==="
           wget -q -O KuaiRec.zip \
@@ -37,16 +43,19 @@ jobs:
           ls -la kuairc/data/
 
       - name: Download PostgreSQL JDBC driver
+        if: ${{ !inputs.skip-kpi }}
         run: |
           curl -sL -o docker/postgresql-42.5.1.jar \
             "https://jdbc.postgresql.org/download/postgresql-42.5.1.jar"
           ls -lh docker/postgresql-42.5.1.jar
 
       - name: Create volume directories
+        if: ${{ !inputs.skip-kpi }}
         run: |
           mkdir -p results
 
       - name: Start Docker cluster
+        if: ${{ !inputs.skip-kpi }}
         run: |
           docker compose -f docker/docker-compose.yml up -d \
             namenode datanode resourcemanager nodemanager \
@@ -55,6 +64,7 @@ jobs:
           docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
       - name: Wait for HDFS and create directories
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Waiting for HDFS ==="
           for i in $(seq 1 30); do
@@ -79,6 +89,7 @@ jobs:
           docker exec namenode hdfs dfs -ls -R /
 
       - name: Upload KuaiRec data to HDFS
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Uploading big_matrix.csv ==="
           docker cp kuairc/data/big_matrix.csv namenode:/tmp/
@@ -112,6 +123,7 @@ jobs:
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
 
       - name: Wait for HiveServer2
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Waiting for HiveServer2 ==="
           MAX=36
@@ -133,18 +145,21 @@ jobs:
           done
 
       - name: Create tables
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Creating ODS/DWD/DWS/ADS tables ==="
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/2_create_tables.hql 2>&1
           echo "=== Tables created ==="
 
       - name: Clean data (ODS → DWD)
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Running ETL: ODS → DWD ==="
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/1_clean_data.hql 2>&1
           echo "=== DWD loaded ==="
 
       - name: Build dimension tables
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Building dim_category and dim_creator ==="
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "
@@ -167,6 +182,7 @@ jobs:
           echo "=== Dimension tables built ==="
 
       - name: Run KPI calculations
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== KPI 3: Completion rate ==="
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/3_kpi_completion_rate.hql 2>&1
@@ -189,6 +205,7 @@ jobs:
           echo "=== KPI calculations done ==="
 
       - name: Verify ADS tables
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== ADS table row counts ==="
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "
@@ -201,6 +218,7 @@ jobs:
           " 2>&1
 
       - name: Export ADS tables to CSV
+        if: ${{ !inputs.skip-kpi }}
         run: |
           echo "=== Exporting ADS to CSV ==="
           for pair in "completion_rate_by_category:completion_rate_by_category" \
@@ -214,13 +232,13 @@ jobs:
             echo "  exporting ads_$tbl -> results/$csv.csv"
             docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "SELECT * FROM ads_$tbl" \
               | tr '\011' ',' \
-              | tail -n +2 \
               > "results/$csv.csv"
           done
           echo "=== Exported files ==="
           ls -lh results/
 
       - name: Convert CSV to JSON for Pages
+        if: ${{ !inputs.skip-kpi }}
         run: python scripts/csv_to_json.py
 
       - name: Setup Pages
@@ -236,5 +254,5 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Cleanup
-        if: always()
+        if: ${{ always() && !inputs.skip-kpi }}
         run: docker compose -f docker/docker-compose.yml down -v
