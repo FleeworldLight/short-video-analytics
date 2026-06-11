@@ -1,31 +1,53 @@
-name: CI - Docker Smoke Test
+name: CI - Full Pipeline + Pages Deploy
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  smoke-test:
+  etl-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download KuaiRec dataset
+        run: |
+          echo "=== Downloading KuaiRec 2.0 from Zenodo ==="
+          wget -q -O KuaiRec.zip \
+            "https://zenodo.org/records/18164998/files/KuaiRec.zip?download=1"
+          ls -lh KuaiRec.zip
+          unzip -q KuaiRec.zip -d kuairc
+          echo "=== KuaiRec files ==="
+          find kuairc -type f -name "*.csv" | sort
+
       - name: Download PostgreSQL JDBC driver
         run: |
-          echo "=== Downloading PostgreSQL JDBC driver ==="
           curl -sL -o docker/postgresql-42.5.1.jar \
             "https://jdbc.postgresql.org/download/postgresql-42.5.1.jar"
-          file docker/postgresql-42.5.1.jar
           ls -lh docker/postgresql-42.5.1.jar
+
+      - name: Create volume directories
+        run: |
+          mkdir -p results
 
       - name: Start Docker cluster
         run: |
           docker compose -f docker/docker-compose.yml up -d \
-            namenode datanode hive-db hive-metastore hive-server mysql spark-master
+            namenode datanode resourcemanager nodemanager \
+            hive-db hive-metastore hive-server mysql
           echo "=== All containers ==="
           docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
@@ -33,65 +55,176 @@ jobs:
         run: |
           echo "=== Waiting for HDFS ==="
           for i in $(seq 1 30); do
-            if docker exec namenode hdfs dfsadmin -report 2>&1; then
+            if docker exec namenode hdfs dfsadmin -report 2>&1 > /dev/null; then
               echo "HDFS ready after ${i} attempts"
               break
             fi
             echo "Attempt $i/30 - sleeping 10s..."
             sleep 10
           done
-          docker exec namenode hdfs dfs -mkdir -p /user/hive/warehouse
-          docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_interaction
-          docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_item_category
-          docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_user_feature
+          docker exec namenode hdfs dfs -mkdir -p \
+            /user/hive/warehouse \
+            /data/short_video/raw/ods_interaction \
+            /data/short_video/raw/ods_item_category \
+            /data/short_video/raw/ods_user_feature \
+            /data/short_video/raw/ods_item_daily \
+            /data/short_video/raw/ods_social_network \
+            /data/short_video/dwd \
+            /data/short_video/dws \
+            /data/short_video/ads
           echo "=== HDFS directories ==="
           docker exec namenode hdfs dfs -ls -R /
 
-      - name: Upload sample data to HDFS
+      - name: Upload KuaiRec data to HDFS
         run: |
-          echo "=== Uploading data ==="
-          docker exec namenode hdfs dfs -put -f /data/samples/big_matrix_sample.csv \
+          echo "=== Uploading big_matrix.csv ==="
+          docker cp kuairc/data/big_matrix.csv namenode:/tmp/
+          docker exec namenode hdfs dfs -put -f /tmp/big_matrix.csv \
             /data/short_video/raw/ods_interaction/
-          docker exec namenode hdfs dfs -put -f /data/samples/item_categories_sample.csv \
+
+          echo "=== Uploading item_categories.csv ==="
+          docker cp kuairc/data/item_categories.csv namenode:/tmp/
+          docker exec namenode hdfs dfs -put -f /tmp/item_categories.csv \
             /data/short_video/raw/ods_item_category/
-          docker exec namenode hdfs dfs -put -f /data/samples/user_features_raw_sample.csv \
+
+          echo "=== Uploading user_features.csv ==="
+          docker cp kuairc/data/user_features.csv namenode:/tmp/
+          docker exec namenode hdfs dfs -put -f /tmp/user_features.csv \
             /data/short_video/raw/ods_user_feature/
-          echo "=== Uploaded files ==="
+
+          echo "=== Uploading item_daily_features.csv ==="
+          docker cp kuairc/data/item_daily_features.csv namenode:/tmp/
+          docker exec namenode hdfs dfs -put -f /tmp/item_daily_features.csv \
+            /data/short_video/raw/ods_item_daily/
+
+          echo "=== Uploading extra files ==="
+          docker cp kuairc/data/small_matrix.csv namenode:/tmp/
+          docker exec namenode hdfs dfs -put -f /tmp/small_matrix.csv \
+            /data/short_video/raw/ods_interaction/
+          docker cp kuairc/data/social_network.csv namenode:/tmp/
+          docker exec namenode hdfs dfs -put -f /tmp/social_network.csv \
+            /data/short_video/raw/ods_social_network/
+
+          echo "=== HDFS upload complete ==="
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
 
-      - name: Verify Hive components
+      - name: Wait for HiveServer2
         run: |
-          echo "=== Hive metastore logs ==="
-          docker logs hive-metastore --tail 30 2>&1 || true
-          echo "=== HiveServer2 logs ==="
-          docker logs hive-server --tail 30 2>&1 || true
-          echo "=== Testing HiveServer2 with beeline ==="
-          for i in $(seq 1 18); do
-            if docker exec hive-server beeline -u jdbc:hive2://localhost:10000 \
-              -n hive -e "SHOW DATABASES;" 2>&1; then
+          echo "=== Waiting for HiveServer2 ==="
+          for i in $(seq 1 24); do
+            if docker exec hive-server \
+              beeline -u jdbc:hive2://localhost:10000 -n hive \
+              -e "SHOW DATABASES;" 2>&1 > /dev/null; then
               echo "HiveServer2 ready after ${i} attempts"
               break
             fi
-            echo "Attempt $i/18 - sleeping 10s..."
-            docker logs hive-server --tail 5 2>&1 || true
+            echo "Attempt $i/24 - sleeping 10s..."
+            docker logs hive-server --tail 3 2>&1 || true
             sleep 10
           done
 
-      - name: Run basic Hive query
+      - name: Create tables
         run: |
-          echo "=== Creating test table via beeline ==="
-          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 \
-            -n hive -e "
-              CREATE TABLE IF NOT EXISTS test_ci (id INT, name STRING)
-              ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
-              SHOW TABLES;
-              DROP TABLE test_ci;
-            " 2>&1
-          echo "Hive query OK"
+          echo "=== Creating ODS/DWD/DWS/ADS tables ==="
+          docker exec hive-server hive -f /scripts/2_create_tables.hql 2>&1
+          echo "=== Tables created ==="
 
-      - name: Check Spark master UI
+      - name: Clean data (ODS → DWD)
         run: |
-          curl -sf http://localhost:8080 > /dev/null && echo "Spark Master OK"
+          echo "=== Running ETL: ODS → DWD ==="
+          docker exec hive-server hive -f /scripts/1_clean_data.hql 2>&1
+          echo "=== DWD loaded ==="
+
+      - name: Build dimension tables
+        run: |
+          echo "=== Building dim_category and dim_creator ==="
+          docker exec hive-server hive -e "
+            INSERT OVERWRITE TABLE dim_category VALUES
+              (1, 'Gaming', '娱乐'), (2, 'Music', '艺术'), (5, 'Fashion', '生活'),
+              (6, 'Entertainment', '娱乐'), (7, 'Sports', '生活'), (9, 'Comedy', '娱乐'),
+              (11, 'Life', '生活'), (12, 'Food', '生活'), (13, 'Agriculture', '生活'),
+              (17, 'Animals', '生活'), (18, 'Cars', '生活'), (20, 'Film', '艺术'),
+              (26, 'Photography', '文化'), (27, 'Other', '其他'), (28, 'News', '文化'),
+              (31, 'Knowledge', '文化');
+            INSERT OVERWRITE TABLE dim_creator
+            SELECT author_id AS creator_id,
+                   COUNT(DISTINCT video_id) AS total_videos,
+                   COUNT(DISTINCT video_tag_id) AS distinct_categories,
+                   ROUND(AVG(video_duration), 2) AS avg_video_duration
+            FROM ods_raw_item_daily_features
+            WHERE author_id IS NOT NULL
+            GROUP BY author_id;
+          " 2>&1
+          echo "=== Dimension tables built ==="
+
+      - name: Run KPI calculations
+        run: |
+          echo "=== KPI 3: Completion rate ==="
+          docker exec hive-server hive -f /scripts/3_kpi_completion_rate.hql 2>&1
+          echo "=== KPI 4: Retention ==="
+          docker exec hive-server hive -f /scripts/4_kpi_retention.hql 2>&1
+          echo "=== KPI 5: Hot ranking ==="
+          docker exec hive-server hive -f /scripts/5_kpi_hot_ranking.hql 2>&1
+          echo "=== KPI 6: Influencer index ==="
+          docker exec hive-server hive -f /scripts/6_kpi_influencer.hql 2>&1
+          echo "=== Extra: Time period analysis ==="
+          docker exec hive-server hive -e "
+            INSERT OVERWRITE TABLE ads_time_period_analysis
+            SELECT time_period, COUNT(*) AS play_count,
+                   ROUND(AVG(watch_ratio), 4) AS avg_watch_ratio,
+                   SUM(like_flag) AS like_count
+            FROM dwd_interaction_detail
+            GROUP BY time_period
+            ORDER BY play_count DESC;
+          " 2>&1
+          echo "=== KPI calculations done ==="
+
+      - name: Verify ADS tables
+        run: |
+          echo "=== ADS table row counts ==="
+          docker exec hive-server hive -e "
+            SELECT 'completion_rate_by_category', COUNT(*) FROM ads_completion_rate_by_category
+            UNION ALL SELECT 'completion_rate_by_author', COUNT(*) FROM ads_completion_rate_by_author
+            UNION ALL SELECT 'user_retention', COUNT(*) FROM ads_user_retention
+            UNION ALL SELECT 'content_hot_ranking', COUNT(*) FROM ads_content_hot_ranking
+            UNION ALL SELECT 'influencer_index', COUNT(*) FROM ads_influencer_index
+            UNION ALL SELECT 'time_period_analysis', COUNT(*) FROM ads_time_period_analysis;
+          " 2>&1
+
+      - name: Export ADS tables to CSV
+        run: |
+          echo "=== Exporting ADS to CSV ==="
+          for pair in "completion_rate_by_category:completion_rate_by_category" \
+            "completion_rate_by_author:completion_rate_by_author" \
+            "user_retention:retention" \
+            "content_hot_ranking:hot_ranking" \
+            "influencer_index:influencer" \
+            "time_period_analysis:time_period_analysis"; do
+            tbl="${pair%%:*}"
+            csv="${pair#*:}"
+            echo "  exporting ads_$tbl -> results/$csv.csv"
+            docker exec hive-server hive -e "SELECT * FROM ads_$tbl" \
+              | sed 's/[\t]/,/g' \
+              | tail -n +2 \
+              > "results/$csv.csv"
+          done
+          echo "=== Exported files ==="
+          ls -lh results/
+
+      - name: Convert CSV to JSON for Pages
+        run: python scripts/csv_to_json.py
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload docs/ as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: Cleanup
         if: always()

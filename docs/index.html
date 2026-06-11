@@ -24,7 +24,7 @@
     <h1>短视频平台内容分析系统</h1>
     <p>基于 KuaiRec 数据集 · 数仓 ODS/DWD/DWS/ADS 四层架构</p>
 </div>
-<div class="tip">预览模式 · 数据为基于 KuaiRec 样本生成的模拟数据</div>
+<div class="tip" id="dataTip">预览模式 · 加载中...</div>
 <div class="grid">
     <div class="card"><h2>完播率分布（按类别）</h2><div id="chart1" class="chart"></div></div>
     <div class="card"><h2>用户留存率曲线</h2><div id="chart2" class="chart"></div></div>
@@ -34,7 +34,7 @@
     <div class="card"><h2>创作者完播率排行 Top 20</h2><div id="chart6" class="chart"></div></div>
 </div>
 <script>
-const MOCK = {
+const FALLBACK = {
     completionCategory: [
         { tagName: 'Animals',   completionRate: 0.62, totalPlays: 2847 },
         { tagName: 'Comedy',    completionRate: 0.58, totalPlays: 5632 },
@@ -94,9 +94,10 @@ const MOCK = {
     })()
 };
 
-// Chart 1
-(function() {
-    const data = MOCK.completionCategory;
+let DATA = null;
+
+function chart1() {
+    const data = DATA.completionCategory;
     const chart = echarts.init(document.getElementById('chart1'));
     chart.setOption({
         tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>完播率: ${p[0].value}%<br/>播放量: ${data[p[0].dataIndex].totalPlays}` },
@@ -104,11 +105,10 @@ const MOCK = {
         yAxis: { type: 'value', name: '完播率', axisLabel: { formatter: '{value}%' }, max: 80 },
         series: [{ type: 'bar', data: data.map(d => (d.completionRate * 100).toFixed(1)), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1, [{offset:0,color:'#667eea'},{offset:1,color:'#764ba2'}]) } }]
     });
-})();
+}
 
-// Chart 2
-(function() {
-    const data = MOCK.retention;
+function chart2() {
+    const data = DATA.retention;
     const chart = echarts.init(document.getElementById('chart2'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
@@ -121,11 +121,10 @@ const MOCK = {
             { name: '30日留存', type: 'line', data: data.map(d => (d.day30Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#52c41a' }, areaStyle: { opacity: 0.1 } }
         ]
     });
-})();
+}
 
-// Chart 3
-(function() {
-    const data = MOCK.hotRanking;
+function chart3() {
+    const data = DATA.hotRanking;
     const chart = echarts.init(document.getElementById('chart3'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
@@ -133,11 +132,10 @@ const MOCK = {
         yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse() },
         series: [{ type: 'bar', data: data.map(d => d.hotScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#f09b22'},{offset:1,color:'#f56565'}]) } }]
     });
-})();
+}
 
-// Chart 4
-(function() {
-    const data = MOCK.influencer;
+function chart4() {
+    const data = DATA.influencer;
     const chart = echarts.init(document.getElementById('chart4'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
@@ -145,11 +143,10 @@ const MOCK = {
         yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
         series: [{ type: 'bar', data: data.map(d => d.influenceScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#48bb78'},{offset:1,color:'#38b2ac'}]) } }]
     });
-})();
+}
 
-// Chart 5
-(function() {
-    const data = MOCK.timePeriod;
+function chart5() {
+    const data = DATA.timePeriod;
     const chart = echarts.init(document.getElementById('chart5'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
@@ -157,11 +154,10 @@ const MOCK = {
         yAxis: { type: 'value', name: '播放量' },
         series: [{ type: 'bar', data: data.map(d => d.playCount), itemStyle: { color: function(p) { const c = ['#667eea','#f09b22','#48bb78','#f56565','#9f7aea','#38b2ac']; return c[p.dataIndex]; } } }]
     });
-})();
+}
 
-// Chart 6
-(function() {
-    const data = MOCK.completionAuthor;
+function chart6() {
+    const data = DATA.completionAuthor;
     const chart = echarts.init(document.getElementById('chart6'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
@@ -169,7 +165,27 @@ const MOCK = {
         yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
         series: [{ type: 'bar', data: data.map(d => (d.avgCompletionRate * 100).toFixed(1)).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#9f7aea'},{offset:1,color:'#667eea'}]) } }]
     });
-})();
+}
+
+function renderAll() {
+    chart1(); chart2(); chart3(); chart4(); chart5(); chart6();
+}
+
+async function loadData() {
+    const tip = document.getElementById('dataTip');
+    try {
+        const r = await fetch('data.json');
+        if (!r.ok) throw new Error('fetch failed');
+        DATA = await r.json();
+        tip.textContent = '基于 KuaiRec 真实数据 · 已部署到 Pages';
+    } catch (e) {
+        DATA = FALLBACK;
+        tip.textContent = '预览模式 · 数据为基于 KuaiRec 样本生成的模拟数据';
+    }
+    renderAll();
+}
+
+loadData();
 </script>
 </body>
 </html>

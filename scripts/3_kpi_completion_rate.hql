@@ -1,0 +1,31 @@
+-- ============================================================
+-- 3_kpi_completion_rate.hql: KPI 1 完播率分布
+--   a) 按视频类别统计完播率
+--   b) 按创作者统计完播率
+-- ============================================================
+
+-- a) 按类别完播率
+INSERT OVERWRITE TABLE ads_completion_rate_by_category
+SELECT
+  c.tag_name,
+  COUNT(*)              AS total_plays,
+  SUM(d.completion_flag) AS total_completions,
+  ROUND(SUM(d.completion_flag) / COUNT(*), 4) AS completion_rate
+FROM dwd_interaction_detail d
+JOIN ods_raw_item_category ic ON d.video_id = ic.video_id
+LATERAL VIEW explode(split(regexp_replace(ic.feat, '\\[|\\]', ''), ',')) t AS tag_str
+JOIN dim_category c ON c.tag_id = CAST(tag_str AS INT)
+GROUP BY c.tag_name
+ORDER BY completion_rate DESC;
+
+-- b) 按创作者完播率
+INSERT OVERWRITE TABLE ads_completion_rate_by_author
+SELECT
+  v.uploader_id,
+  COUNT(*)                AS total_plays,
+  ROUND(AVG(d.completion_flag), 4) AS avg_completion_rate
+FROM dwd_interaction_detail d
+JOIN dim_video v ON d.video_id = v.video_id
+WHERE v.uploader_id IS NOT NULL
+GROUP BY v.uploader_id
+ORDER BY avg_completion_rate DESC;

@@ -23,7 +23,7 @@ __pycache__/
 *.pyc
 
 # Data & results
-结果数据/
+results/
 临时/
 *.zip
 

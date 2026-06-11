@@ -13,7 +13,7 @@ services:
       - HDFS_CONF_dfs_permissions_enabled=false
     volumes:
       - namenode:/hadoop/dfs/name
-      - ../数据样例:/data/samples
+      - ../data/samples:/data/samples
     networks:
       - hadoop-net
 
@@ -101,8 +101,8 @@ services:
       - SERVICE_OPTS=-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://hive-db:5432/metastore -Djavax.jdo.option.ConnectionUserName=hive -Djavax.jdo.option.ConnectionPassword=hive
     volumes:
       - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
-      - ../脚本:/scripts
-      - ../数据样例:/data/samples
+      - ../scripts:/scripts
+      - ../data/samples:/data/samples
     networks:
       - hadoop-net
 
@@ -123,9 +123,9 @@ services:
       - SERVICE_OPTS=-Dhive.metastore.uris=thrift://hive-metastore:9083
     volumes:
       - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
-      - ../脚本:/scripts
-      - ../数据样例:/data/samples
-      - ../结果数据:/results
+      - ../scripts:/scripts
+      - ../data/samples:/data/samples
+      - ../results:/results
     networks:
       - hadoop-net
 
@@ -157,7 +157,7 @@ services:
     command: ["mysqld", "--local-infile=1"]
     volumes:
       - mysql-data:/var/lib/mysql
-      - ../结果数据:/import
+      - ../results:/import
     networks:
       - hadoop-net
 
