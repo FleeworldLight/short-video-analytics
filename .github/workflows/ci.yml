@@ -32,6 +32,8 @@ jobs:
         run: |
           curl -sL -o docker/postgresql-42.5.1.jar \
             "https://jdbc.postgresql.org/download/postgresql-42.5.1.jar"
+          file docker/postgresql-42.5.1.jar
+          ls -lh docker/postgresql-42.5.1.jar
 
       - name: Start Docker cluster (essential services only)
         run: |
