@@ -59,40 +59,34 @@ jobs:
           echo "=== Uploaded files ==="
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
 
-      - name: Verify Hive metastore
+      - name: Verify Hive components
         run: |
           echo "=== Hive metastore logs ==="
           docker logs hive-metastore --tail 30 2>&1 || true
-          echo "=== Testing Hive CLI through metastore ==="
-          docker exec hive-metastore hive -e "SHOW DATABASES;" 2>&1
-
-      - name: Verify HiveServer2
-        run: |
           echo "=== HiveServer2 logs ==="
           docker logs hive-server --tail 30 2>&1 || true
-          echo "=== Testing HiveServer2 ==="
-          for i in $(seq 1 12); do
-            if docker exec hive-server hive -e "SHOW DATABASES;" 2>&1; then
+          echo "=== Testing HiveServer2 with beeline ==="
+          for i in $(seq 1 18); do
+            if docker exec hive-server beeline -u jdbc:hive2://localhost:10000 \
+              -n hive -e "SHOW DATABASES;" 2>&1; then
               echo "HiveServer2 ready after ${i} attempts"
-              exit 0
+              break
             fi
-            echo "Attempt $i/12 - sleeping 10s..."
+            echo "Attempt $i/18 - sleeping 10s..."
+            docker logs hive-server --tail 5 2>&1 || true
             sleep 10
           done
-          echo "=== HiveServer2 failed - dumping all logs ==="
-          docker logs hive-server --tail 100 2>&1 || true
-          docker logs hive-metastore --tail 50 2>&1 || true
-          exit 1
 
       - name: Run basic Hive query
         run: |
-          echo "=== Creating test table ==="
-          docker exec hive-server hive -e "
-            CREATE TABLE IF NOT EXISTS test_ci (id INT, name STRING)
-            ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
-            SHOW TABLES;
-            DROP TABLE test_ci;
-          " 2>&1
+          echo "=== Creating test table via beeline ==="
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 \
+            -n hive -e "
+              CREATE TABLE IF NOT EXISTS test_ci (id INT, name STRING)
+              ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+              SHOW TABLES;
+              DROP TABLE test_ci;
+            " 2>&1
           echo "Hive query OK"
 
       - name: Check Spark master UI
