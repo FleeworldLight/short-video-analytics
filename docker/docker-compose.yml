@@ -92,21 +92,13 @@ services:
     ports:
       - "9083:9083"
     depends_on:
-      namenode:
-        condition: service_started
-      hive-db:
-        condition: service_healthy
+      - namenode
+      - hive-db
     environment:
       - SERVICE_NAME=metastore
       - DB_DRIVER=postgres
       - VERBOSE=true
       - SERVICE_OPTS=-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://hive-db:5432/metastore -Djavax.jdo.option.ConnectionUserName=hive -Djavax.jdo.option.ConnectionPassword=hive
-    healthcheck:
-      test: ["CMD-SHELL", "grep -q ':237B' /proc/net/tcp"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
     volumes:
       - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
       - ../脚本:/scripts
@@ -119,10 +111,8 @@ services:
     hostname: hive-server
     container_name: hive-server
     depends_on:
-      hive-metastore:
-        condition: service_healthy
-      hive-db:
-        condition: service_started
+      - hive-metastore
+      - hive-db
     ports:
       - "10000:10000"
     environment:
@@ -131,12 +121,6 @@ services:
       - VERBOSE=true
       - HADOOP_CLIENT_OPTS=-Dhive.metastore.uris=thrift://hive-metastore:9083
       - SERVICE_OPTS=-Dhive.metastore.uris=thrift://hive-metastore:9083
-    healthcheck:
-      test: ["CMD-SHELL", "grep -q ':2710' /proc/net/tcp"]
-      interval: 15s
-      timeout: 10s
-      retries: 12
-      start_period: 120s
     volumes:
       - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
       - ../脚本:/scripts
@@ -153,12 +137,6 @@ services:
       - POSTGRES_USER=hive
       - POSTGRES_PASSWORD=hive
       - POSTGRES_DB=metastore
-    healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=hive psql -U hive -d metastore -c 'SELECT 1' > /dev/null 2>&1"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
     volumes:
       - hive-db:/var/lib/postgresql/data
     networks:

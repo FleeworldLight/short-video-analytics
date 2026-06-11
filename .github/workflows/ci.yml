@@ -24,7 +24,7 @@ jobs:
 
       - name: Start Docker cluster
         run: |
-          docker compose -f docker/docker-compose.yml up -d --wait \
+          docker compose -f docker/docker-compose.yml up -d \
             namenode datanode hive-db hive-metastore hive-server mysql spark-master
           echo "=== All containers ==="
           docker ps -a --format "table {{.Names}}\t{{.Status}}"
