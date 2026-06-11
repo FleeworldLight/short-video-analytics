@@ -118,8 +118,8 @@ SELECT
   ROUND(play_duration / 1000.0, 2)     AS play_duration_sec,
   ROUND(video_duration / 1000.0, 2)    AS video_duration_sec,
   watch_ratio,
-  IF(watch_ratio >= 1.0, 1, 0)         AS completion_flag,
-  IF(watch_ratio > 2.0, 1, 0)          AS like_flag,
+  IF(watch_ratio >= 1, 1, 0)           AS completion_flag,
+  IF(watch_ratio > 2, 1, 0)            AS like_flag,
   CAST(`date` AS STRING)                  AS event_date,
   HOUR(FROM_UNIXTIME(CAST(`timestamp` AS INT))) AS event_hour,
   -- weekday: 1=Monday ... 7=Sunday for Hive
