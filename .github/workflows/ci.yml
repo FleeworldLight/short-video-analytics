@@ -129,19 +129,19 @@ jobs:
       - name: Create tables
         run: |
           echo "=== Creating ODS/DWD/DWS/ADS tables ==="
-          docker exec hive-server hive -f /scripts/2_create_tables.hql 2>&1
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/2_create_tables.hql 2>&1
           echo "=== Tables created ==="
 
       - name: Clean data (ODS → DWD)
         run: |
           echo "=== Running ETL: ODS → DWD ==="
-          docker exec hive-server hive -f /scripts/1_clean_data.hql 2>&1
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/1_clean_data.hql 2>&1
           echo "=== DWD loaded ==="
 
       - name: Build dimension tables
         run: |
           echo "=== Building dim_category and dim_creator ==="
-          docker exec hive-server hive -e "
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "
             INSERT OVERWRITE TABLE dim_category VALUES
               (1, 'Gaming', '娱乐'), (2, 'Music', '艺术'), (5, 'Fashion', '生活'),
               (6, 'Entertainment', '娱乐'), (7, 'Sports', '生活'), (9, 'Comedy', '娱乐'),
@@ -163,15 +163,15 @@ jobs:
       - name: Run KPI calculations
         run: |
           echo "=== KPI 3: Completion rate ==="
-          docker exec hive-server hive -f /scripts/3_kpi_completion_rate.hql 2>&1
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/3_kpi_completion_rate.hql 2>&1
           echo "=== KPI 4: Retention ==="
-          docker exec hive-server hive -f /scripts/4_kpi_retention.hql 2>&1
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/4_kpi_retention.hql 2>&1
           echo "=== KPI 5: Hot ranking ==="
-          docker exec hive-server hive -f /scripts/5_kpi_hot_ranking.hql 2>&1
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/5_kpi_hot_ranking.hql 2>&1
           echo "=== KPI 6: Influencer index ==="
-          docker exec hive-server hive -f /scripts/6_kpi_influencer.hql 2>&1
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/6_kpi_influencer.hql 2>&1
           echo "=== Extra: Time period analysis ==="
-          docker exec hive-server hive -e "
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "
             INSERT OVERWRITE TABLE ads_time_period_analysis
             SELECT time_period, COUNT(*) AS play_count,
                    ROUND(AVG(watch_ratio), 4) AS avg_watch_ratio,
@@ -185,7 +185,7 @@ jobs:
       - name: Verify ADS tables
         run: |
           echo "=== ADS table row counts ==="
-          docker exec hive-server hive -e "
+          docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "
             SELECT 'completion_rate_by_category', COUNT(*) FROM ads_completion_rate_by_category
             UNION ALL SELECT 'completion_rate_by_author', COUNT(*) FROM ads_completion_rate_by_author
             UNION ALL SELECT 'user_retention', COUNT(*) FROM ads_user_retention
@@ -206,7 +206,7 @@ jobs:
             tbl="${pair%%:*}"
             csv="${pair#*:}"
             echo "  exporting ads_$tbl -> results/$csv.csv"
-            docker exec hive-server hive -e "SELECT * FROM ads_$tbl" \
+            docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "SELECT * FROM ads_$tbl" \
               | sed 's/[\t]/,/g' \
               | tail -n +2 \
               > "results/$csv.csv"
