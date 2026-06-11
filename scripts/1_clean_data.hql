@@ -113,8 +113,8 @@ SET hive.exec.dynamic.partition.mode = nonstrict;
 
 INSERT OVERWRITE TABLE dwd_interaction_detail PARTITION (dt)
 SELECT
-  user_id,
-  video_id,
+  i.user_id,
+  i.video_id,
   ROUND(play_duration / 1000.0, 2)     AS play_duration_sec,
   ROUND(video_duration / 1000.0, 2)    AS video_duration_sec,
   watch_ratio,
@@ -133,7 +133,7 @@ SELECT
     ELSE '深夜'
   END AS time_period,
   c.feat                               AS category_ids,
-  CAST(ts AS BIGINT)                    AS ts,
+  CAST(`timestamp` AS BIGINT)            AS ts,
   CAST(`date` AS STRING)                  AS dt
 FROM (
   SELECT *,
@@ -179,7 +179,84 @@ SELECT
 FROM ods_raw_user_feature
 WHERE user_id IS NOT NULL;
 
--- 维度表：dim_video
+CREATE EXTERNAL TABLE IF NOT EXISTS ods_raw_item_daily_features (
+  video_id                INT,
+  `date`                    INT,
+  author_id               INT,
+  video_type              STRING,
+  upload_dt               STRING,
+  upload_type             STRING,
+  visible_status          STRING,
+  video_duration          DOUBLE,
+  video_width             INT,
+  video_height            INT,
+  music_id                BIGINT,
+  video_tag_id            INT,
+  video_tag_name          STRING,
+  show_cnt                BIGINT,
+  show_user_num           BIGINT,
+  play_cnt                BIGINT,
+  play_user_num           BIGINT,
+  play_duration           DOUBLE,
+  complete_play_cnt       BIGINT,
+  complete_play_user_num  BIGINT,
+  valid_play_cnt          BIGINT,
+  valid_play_user_num     BIGINT,
+  long_time_play_cnt      BIGINT,
+  long_time_play_user_num BIGINT,
+  short_time_play_cnt     BIGINT,
+  short_time_play_user_num BIGINT,
+  play_progress           DOUBLE,
+  comment_stay_duration   DOUBLE,
+  like_cnt                BIGINT,
+  like_user_num           BIGINT,
+  click_like_cnt          BIGINT,
+  double_click_cnt        BIGINT,
+  cancel_like_cnt         BIGINT,
+  cancel_like_user_num    BIGINT,
+  comment_cnt             BIGINT,
+  comment_user_num        BIGINT,
+  direct_comment_cnt      BIGINT,
+  reply_comment_cnt       BIGINT,
+  delete_comment_cnt      BIGINT,
+  delete_comment_user_num BIGINT,
+  comment_like_cnt        BIGINT,
+  comment_like_user_num   BIGINT,
+  follow_cnt              BIGINT,
+  follow_user_num         BIGINT,
+  cancel_follow_cnt       BIGINT,
+  cancel_follow_user_num  BIGINT,
+  share_cnt               BIGINT,
+  share_user_num          BIGINT,
+  download_cnt            BIGINT,
+  download_user_num       BIGINT,
+  report_cnt              BIGINT,
+  report_user_num         BIGINT,
+  reduce_similar_cnt      BIGINT,
+  reduce_similar_user_num BIGINT,
+  collect_cnt             BIGINT,
+  collect_user_num        BIGINT,
+  cancel_collect_cnt      BIGINT,
+  cancel_collect_user_num BIGINT
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+  "separatorChar" = ",",
+  "quoteChar"     = "\""
+)
+STORED AS TEXTFILE
+LOCATION '/data/short_video/raw/ods_item_daily'
+TBLPROPERTIES ("skip.header.line.count" = "1");
+
+CREATE TABLE IF NOT EXISTS dim_video (
+  video_id       INT,
+  duration_sec   DOUBLE,
+  category_list  STRING,
+  uploader_id    INT
+)
+STORED AS ORC
+TBLPROPERTIES ("orc.compress" = "SNAPPY");
+
 INSERT OVERWRITE TABLE dim_video
 SELECT
   i.video_id,
@@ -265,6 +342,19 @@ STORED AS ORC
 TBLPROPERTIES ("orc.compress" = "SNAPPY");
 
 -- DWS 用户周汇总
+CREATE TABLE IF NOT EXISTS dws_user_weekly_agg (
+  user_id           INT,
+  week_start        STRING,
+  active_days       INT,
+  total_plays       BIGINT,
+  total_watch_sec   DOUBLE,
+  total_completions BIGINT,
+  avg_completion    DOUBLE
+)
+PARTITIONED BY (dt STRING)
+STORED AS ORC
+TBLPROPERTIES ("orc.compress" = "SNAPPY");
+
 SET hive.exec.dynamic.partition = true;
 SET hive.exec.dynamic.partition.mode = nonstrict;
 

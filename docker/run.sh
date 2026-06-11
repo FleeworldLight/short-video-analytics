@@ -124,7 +124,7 @@ docker exec hive-server hive -e "
   ) t
   ORDER BY hot_score DESC
   LIMIT 50;
-" | sed 's/[\t]/,/g' | tail -n +2 > "$ROOT_DIR/结果数据/hot_ranking_weekly.csv"
+" | tr '\011' ',' | tail -n +2 > "$ROOT_DIR/结果数据/hot_ranking_weekly.csv"
 
 echo "ADS table row counts:"
 docker exec hive-server hive -e "
@@ -160,7 +160,7 @@ for entry in "${ADS_MAP[@]}"; do
   csv_name="${entry#*:}"
   echo "Exporting $tbl -> $csv_name.csv ..."
   docker exec hive-server hive -e "SELECT * FROM ads_$tbl" \
-    | sed 's/[\t]/,/g' \
+    | tr '\011' ',' \
     | tail -n +2 \
     > "$ROOT_DIR/结果数据/$csv_name.csv"
 done

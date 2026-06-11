@@ -129,7 +129,7 @@ for entry in "${ADS_MAP[@]}"; do
   csv_name="${entry#*:}"
   echo "Exporting $tbl -> $csv_name.csv ..."
   hive -e "SELECT * FROM ads_$tbl" \
-    | sed 's/[\t]/,/g' \
+    | tr '\011' ',' \
     | tail -n +2 \
     > "$ROOT_DIR/结果数据/$csv_name.csv"
 done
@@ -139,6 +139,8 @@ ls -la "$ROOT_DIR/结果数据/"*.csv 2>/dev/null || echo "  (empty)"
 
 echo ""
 echo "=== Step 7: Import into MySQL ==="
+
+mysql -u $MYSQL_USER -p$MYSQL_PASS -e "SET GLOBAL local_infile = 1;"
 mysql -u $MYSQL_USER -p$MYSQL_PASS --local-infile <<EOF
 DROP DATABASE IF EXISTS $MYSQL_DB;
 CREATE DATABASE $MYSQL_DB DEFAULT CHARSET utf8;

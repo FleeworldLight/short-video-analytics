@@ -207,7 +207,7 @@ jobs:
             csv="${pair#*:}"
             echo "  exporting ads_$tbl -> results/$csv.csv"
             docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "SELECT * FROM ads_$tbl" \
-              | sed 's/[\t]/,/g' \
+              | tr '\011' ',' \
               | tail -n +2 \
               > "results/$csv.csv"
           done
