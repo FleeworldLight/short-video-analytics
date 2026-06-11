@@ -98,7 +98,7 @@ services:
         condition: service_healthy
     environment:
       - SERVICE_NAME=metastore
-      - DB_DRIVER=postgresql
+      - DB_DRIVER=postgres
       - METASTORE_DB_HOSTNAME=hive-db
       - METASTORE_DB_PORT=5432
       - METASTORE_DB_NAME=metastore
@@ -134,7 +134,7 @@ services:
       - "10000:10000"
     environment:
       - SERVICE_NAME=hiveserver2
-      - DB_DRIVER=postgresql
+      - DB_DRIVER=postgres
       - METASTORE_DB_HOSTNAME=hive-db
       - METASTORE_DB_PORT=5432
       - METASTORE_DB_NAME=metastore
