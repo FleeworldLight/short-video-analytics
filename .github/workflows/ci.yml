@@ -30,32 +30,34 @@ jobs:
 
       - name: Start Docker cluster (essential services only)
         run: |
-          docker compose -f docker/docker-compose.yml up -d \
+          docker compose -f docker/docker-compose.yml up -d --wait \
             namenode datanode hive-db hive-metastore hive-server mysql spark-master
-          echo "Waiting for containers to start..."
           docker compose -f docker/docker-compose.yml ps
 
-      - name: Wait for services to be ready
-        run: sleep 120
-
-      - name: Diagnose - show running containers
+      - name: Wait for HDFS (namenode)
         run: |
-          docker ps -a --format "table {{.Names}}\t{{.Status}}"
-          for c in namenode datanode hive-metastore hive-server; do
-            echo "--- $c logs (tail 20) ---"
-            docker logs "$c" 2>&1 | tail -20 || true
+          echo "Waiting for namenode..."
+          for i in $(seq 1 30); do
+            if docker exec namenode hdfs dfsadmin -report &>/dev/null; then
+              echo "Namenode ready"
+              break
+            fi
+            echo "Attempt $i/30 - not ready yet, sleeping 10s..."
+            sleep 10
           done
+          if ! docker exec namenode hdfs dfsadmin -report &>/dev/null; then
+            echo "Namenode failed to start"
+            docker logs namenode --tail 30
+            exit 1
+          fi
 
-      - name: Check HDFS - namenode report
-        run: docker exec namenode hdfs dfsadmin -report
-
-      - name: Check HDFS - basic operations
+      - name: Prepare HDFS directories
         run: |
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_interaction
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_item_category
           docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_user_feature
           docker exec namenode hdfs dfs -ls /data/short_video/raw/
-          echo "HDFS OK"
+          echo "HDFS directories OK"
 
       - name: Upload data to HDFS
         run: |
@@ -68,10 +70,28 @@ jobs:
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
           echo "Upload OK"
 
-      - name: Check Hive
+      - name: Wait for Hive Server
         run: |
-          docker exec hive-server hive -e "SHOW DATABASES;"
-          echo "Hive OK"
+          echo "Waiting for hive-server to be healthy..."
+          for i in $(seq 1 36); do
+            if docker exec hive-server hive -e "SHOW DATABASES;" &>/dev/null; then
+              echo "Hive Server ready"
+              break
+            fi
+            echo "Attempt $i/36 - not ready, sleeping 10s..."
+            docker logs hive-server --tail 5 2>&1 || true
+            sleep 10
+          done
+          if ! docker exec hive-server hive -e "SHOW DATABASES;" &>/dev/null; then
+            echo "Hive Server failed to start"
+            docker logs hive-server --tail 50
+            docker logs hive-metastore --tail 20
+            exit 1
+          fi
+
+      - name: Diagnose - show running containers
+        run: |
+          docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
       - name: Check Spark master UI
         run: |

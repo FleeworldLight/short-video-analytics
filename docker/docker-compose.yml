@@ -92,8 +92,10 @@ services:
     ports:
       - "9083:9083"
     depends_on:
-      - namenode
-      - hive-db
+      namenode:
+        condition: service_started
+      hive-db:
+        condition: service_healthy
     environment:
       - SERVICE_NAME=metastore
       - DB_DRIVER=postgresql
@@ -106,7 +108,12 @@ services:
       - HIVE_CONF_javax_jdo_option_ConnectionDriverName=org.postgresql.Driver
       - HIVE_CONF_javax_jdo_option_ConnectionUserName=hive
       - HIVE_CONF_javax_jdo_option_ConnectionPassword=hive
-      - SERVICE_PRECONDITION=namenode:9870
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'hive.*metastore' || pgrep -f HiveMetaStore"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     volumes:
       - ../脚本:/scripts
       - ../数据样例:/data/samples
@@ -118,8 +125,10 @@ services:
     hostname: hive-server
     container_name: hive-server
     depends_on:
-      - hive-metastore
-      - hive-db
+      hive-metastore:
+        condition: service_healthy
+      hive-db:
+        condition: service_started
     ports:
       - "10000:10000"
     environment:
@@ -134,7 +143,12 @@ services:
       - HIVE_CONF_javax_jdo_option_ConnectionDriverName=org.postgresql.Driver
       - HIVE_CONF_javax_jdo_option_ConnectionUserName=hive
       - HIVE_CONF_javax_jdo_option_ConnectionPassword=hive
-      - SERVICE_PRECONDITION=hive-metastore:9083
+    healthcheck:
+      test: ["CMD", "/opt/hive/bin/hive", "-e", "SHOW DATABASES;"]
+      interval: 15s
+      timeout: 15s
+      retries: 12
+      start_period: 120s
     volumes:
       - ../脚本:/scripts
       - ../数据样例:/data/samples
@@ -150,6 +164,12 @@ services:
       - POSTGRES_USER=hive
       - POSTGRES_PASSWORD=hive
       - POSTGRES_DB=metastore
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hive"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     volumes:
       - hive-db:/var/lib/postgresql/data
     networks:
