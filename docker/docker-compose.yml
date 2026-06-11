@@ -99,15 +99,7 @@ services:
     environment:
       - SERVICE_NAME=metastore
       - DB_DRIVER=postgres
-      - METASTORE_DB_HOSTNAME=hive-db
-      - METASTORE_DB_PORT=5432
-      - METASTORE_DB_NAME=metastore
-      - METASTORE_DB_USER=hive
-      - METASTORE_DB_PASSWORD=hive
-      - HIVE_CONF_javax_jdo_option_ConnectionURL=jdbc:postgresql://hive-db:5432/metastore
-      - HIVE_CONF_javax_jdo_option_ConnectionDriverName=org.postgresql.Driver
-      - HIVE_CONF_javax_jdo_option_ConnectionUserName=hive
-      - HIVE_CONF_javax_jdo_option_ConnectionPassword=hive
+      - SERVICE_OPTS=-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://hive-db:5432/metastore -Djavax.jdo.option.ConnectionUserName=hive -Djavax.jdo.option.ConnectionPassword=hive
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'hive.*metastore' || pgrep -f HiveMetaStore"]
       interval: 15s
@@ -134,16 +126,8 @@ services:
       - "10000:10000"
     environment:
       - SERVICE_NAME=hiveserver2
-      - DB_DRIVER=postgres
-      - METASTORE_DB_HOSTNAME=hive-db
-      - METASTORE_DB_PORT=5432
-      - METASTORE_DB_NAME=metastore
-      - METASTORE_DB_USER=hive
-      - METASTORE_DB_PASSWORD=hive
-      - HIVE_CONF_javax_jdo_option_ConnectionURL=jdbc:postgresql://hive-db:5432/metastore
-      - HIVE_CONF_javax_jdo_option_ConnectionDriverName=org.postgresql.Driver
-      - HIVE_CONF_javax_jdo_option_ConnectionUserName=hive
-      - HIVE_CONF_javax_jdo_option_ConnectionPassword=hive
+      - IS_RESUME=true
+      - SERVICE_OPTS=-Dhive.metastore.uris=thrift://hive-metastore:9083
     healthcheck:
       test: ["CMD", "/opt/hive/bin/hive", "-e", "SHOW DATABASES;"]
       interval: 15s
