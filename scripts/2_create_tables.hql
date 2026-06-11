@@ -11,9 +11,9 @@ CREATE EXTERNAL TABLE IF NOT EXISTS ods_raw_interaction (
   video_id         INT,
   play_duration    BIGINT,
   video_duration   BIGINT,
-  time             STRING,
-  date             INT,
-  timestamp        DOUBLE,
+  `time`             STRING,
+  `date`             INT,
+  `timestamp`        DOUBLE,
   watch_ratio      DOUBLE
 )
 ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
@@ -40,7 +40,7 @@ TBLPROPERTIES ("skip.header.line.count" = "1");
 
 CREATE EXTERNAL TABLE IF NOT EXISTS ods_raw_item_daily_features (
   video_id                INT,
-  date                    INT,
+  `date`                    INT,
   author_id               INT,
   video_type              STRING,
   upload_dt               STRING,

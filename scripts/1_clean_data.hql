@@ -18,9 +18,9 @@ CREATE EXTERNAL TABLE IF NOT EXISTS ods_raw_interaction (
   video_id         INT,
   play_duration    BIGINT,
   video_duration   BIGINT,
-  time             STRING,
-  date             INT,
-  timestamp        DOUBLE,
+  `time`             STRING,
+  `date`             INT,
+  `timestamp`        DOUBLE,
   watch_ratio      DOUBLE
 )
 ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
@@ -120,26 +120,26 @@ SELECT
   watch_ratio,
   IF(watch_ratio >= 1.0, 1, 0)         AS completion_flag,
   IF(watch_ratio > 2.0, 1, 0)          AS like_flag,
-  CAST(date AS STRING)                  AS event_date,
-  HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) AS event_hour,
+  CAST(`date` AS STRING)                  AS event_date,
+  HOUR(FROM_UNIXTIME(CAST(`timestamp` AS INT))) AS event_hour,
   -- weekday: 1=Monday ... 7=Sunday for Hive
-  CAST((FROM_UNIXTIME(CAST(timestamp AS INT), 'u')) AS INT) AS weekday,
+  CAST((FROM_UNIXTIME(CAST(`timestamp` AS INT), 'u')) AS INT) AS weekday,
   CASE
-    WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 0  AND 5  THEN '凌晨'
-    WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 6  AND 11 THEN '上午'
-    WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 12 AND 13 THEN '中午'
-    WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 14 AND 17 THEN '下午'
-    WHEN HOUR(FROM_UNIXTIME(CAST(timestamp AS INT))) BETWEEN 18 AND 21 THEN '晚间'
+    WHEN HOUR(FROM_UNIXTIME(CAST(`timestamp` AS INT))) BETWEEN 0  AND 5  THEN '凌晨'
+    WHEN HOUR(FROM_UNIXTIME(CAST(`timestamp` AS INT))) BETWEEN 6  AND 11 THEN '上午'
+    WHEN HOUR(FROM_UNIXTIME(CAST(`timestamp` AS INT))) BETWEEN 12 AND 13 THEN '中午'
+    WHEN HOUR(FROM_UNIXTIME(CAST(`timestamp` AS INT))) BETWEEN 14 AND 17 THEN '下午'
+    WHEN HOUR(FROM_UNIXTIME(CAST(`timestamp` AS INT))) BETWEEN 18 AND 21 THEN '晚间'
     ELSE '深夜'
   END AS time_period,
   c.feat                               AS category_ids,
   CAST(ts AS BIGINT)                    AS ts,
-  CAST(date AS STRING)                  AS dt
+  CAST(`date` AS STRING)                  AS dt
 FROM (
   SELECT *,
     ROW_NUMBER() OVER (
-      PARTITION BY user_id, video_id, date
-      ORDER BY timestamp DESC
+      PARTITION BY user_id, video_id, `date`
+      ORDER BY `timestamp` DESC
     ) AS rn
   FROM ods_raw_interaction
   WHERE play_duration > 0

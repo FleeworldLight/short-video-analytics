@@ -12,24 +12,24 @@ daily_active AS (
     a.event_date,
     COUNT(DISTINCT a.user_id) AS dau,
     COUNT(DISTINCT CASE WHEN b.user_id IS NOT NULL
-      AND date_diff(b.event_date, a.event_date) = 1
+      AND datediff(b.event_date, a.event_date) = 1
       THEN a.user_id END) AS d1_active,
     COUNT(DISTINCT CASE WHEN b7.user_id IS NOT NULL
-      AND date_diff(b7.event_date, a.event_date) = 7
+      AND datediff(b7.event_date, a.event_date) = 7
       THEN a.user_id END) AS d7_active,
     COUNT(DISTINCT CASE WHEN b30.user_id IS NOT NULL
-      AND date_diff(b30.event_date, a.event_date) = 30
+      AND datediff(b30.event_date, a.event_date) = 30
       THEN a.user_id END) AS d30_active
   FROM active_users a
   LEFT JOIN active_users b
     ON a.user_id = b.user_id
-    AND date_diff(b.event_date, a.event_date) = 1
+    AND datediff(b.event_date, a.event_date) = 1
   LEFT JOIN active_users b7
     ON a.user_id = b7.user_id
-    AND date_diff(b7.event_date, a.event_date) = 7
+    AND datediff(b7.event_date, a.event_date) = 7
   LEFT JOIN active_users b30
     ON a.user_id = b30.user_id
-    AND date_diff(b30.event_date, a.event_date) = 30
+    AND datediff(b30.event_date, a.event_date) = 30
   GROUP BY a.event_date
 )
 INSERT OVERWRITE TABLE ads_user_retention
