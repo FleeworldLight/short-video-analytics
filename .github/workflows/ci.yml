@@ -230,8 +230,7 @@ jobs:
             tbl="${pair%%:*}"
             csv="${pair#*:}"
             echo "  exporting ads_$tbl -> results/$csv.csv"
-            docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "SELECT * FROM ads_$tbl" \
-              | tr '\011' ',' \
+            docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive --outputformat=csv2 -e "SELECT * FROM ads_$tbl" \
               > "results/$csv.csv"
           done
           echo "=== Exported files ==="
