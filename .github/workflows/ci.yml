@@ -240,6 +240,15 @@ jobs:
         if: ${{ !inputs.skip-kpi }}
         run: python scripts/csv_to_json.py
 
+      - name: Upload results as Artifacts
+        if: ${{ !inputs.skip-kpi }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: results
+          path: |
+            results/*.csv
+            docs/data.json
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
