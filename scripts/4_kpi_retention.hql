@@ -4,7 +4,8 @@
 -- ============================================================
 
 WITH active_users AS (
-  SELECT DISTINCT user_id, dt AS event_date
+  SELECT DISTINCT user_id,
+    CAST(CONCAT(SUBSTR(dt,1,4), '-', SUBSTR(dt,5,2), '-', SUBSTR(dt,7,2)) AS DATE) AS event_date
   FROM dwd_interaction_detail
 ),
 daily_active AS (
