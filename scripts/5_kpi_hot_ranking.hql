@@ -24,4 +24,4 @@ FROM (
   GROUP BY video_id, dt
 ) t
 ORDER BY hot_score DESC
-LIMIT 50;
+LIMIT 30;

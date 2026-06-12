@@ -34,4 +34,5 @@ FROM dwd_interaction_detail d
 JOIN dim_video v ON d.video_id = v.video_id
 WHERE v.uploader_id IS NOT NULL
 GROUP BY v.uploader_id
-ORDER BY avg_completion_rate DESC;
+ORDER BY avg_completion_rate DESC
+LIMIT 20;

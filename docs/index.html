@@ -94,7 +94,7 @@ const FALLBACK = {
         return r;
     })()
 };
-
+const CATEGORY_CN = {Gaming:'游戏',Music:'音乐',Fashion:'时尚',Entertainment:'娱乐',Sports:'体育',Comedy:'喜剧',Life:'生活',Food:'美食',Agriculture:'农业',Animals:'动物',Cars:'汽车',Film:'电影',Photography:'摄影',Other:'其他',News:'新闻',Knowledge:'知识'};
 let DATA = null;
 
 function chart1() {
@@ -102,15 +102,15 @@ function chart1() {
     const chart = echarts.init(document.getElementById('chart1'));
     chart.setOption({
         tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>完播率: ${p[0].value}%<br/>播放量: ${data[p[0].dataIndex].totalPlays}` },
-        xAxis: { type: 'category', data: data.map(d => d.tagName), axisLabel: { rotate: 45 } },
+        xAxis: { type: 'category', data: data.map(d => CATEGORY_CN[d.tagName] || d.tagName), axisLabel: { rotate: 45 } },
         yAxis: { type: 'value', name: '完播率', axisLabel: { formatter: '{value}%' }, max: 80 },
         series: [{ type: 'bar', data: data.map(d => (d.completionRate * 100).toFixed(1)), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1, [{offset:0,color:'#667eea'},{offset:1,color:'#764ba2'}]) } }]
     });
 }
 
 function chart2() {
-    const data = DATA.retention;
-    const avgDau = data.reduce((s, d) => s + d.dau, 0) / data.length;
+    const data = DATA.retention.filter(d => d.reportDate && d.reportDate !== 'NULL');
+    const avgDau = data.length ? data.reduce((s, d) => s + d.dau, 0) / data.length : 0;
     const tip = document.getElementById('chart2').parentNode.querySelector('.chart-tip');
     if (tip) tip.remove();
     if (avgDau < 10) {
@@ -134,12 +134,12 @@ function chart2() {
 }
 
 function chart3() {
-    const data = DATA.hotRanking;
+    const data = DATA.hotRanking.slice(0, 30);
     const chart = echarts.init(document.getElementById('chart3'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '热度分' },
-        yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse() },
+        yAxis: { type: 'category', data: data.map(d => '#' + d.rankNo).reverse() },
         series: [{ type: 'bar', data: data.map(d => d.hotScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#f09b22'},{offset:1,color:'#f56565'}]) } }]
     });
 }
@@ -150,7 +150,7 @@ function chart4() {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '影响力分' },
-        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        yAxis: { type: 'category', data: data.map(d => '#' + d.rankNo).reverse() },
         series: [{ type: 'bar', data: data.map(d => d.influenceScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#48bb78'},{offset:1,color:'#38b2ac'}]) } }]
     });
 }
@@ -167,12 +167,12 @@ function chart5() {
 }
 
 function chart6() {
-    const data = DATA.completionAuthor;
+    const data = DATA.completionAuthor.slice(0, 20);
     const chart = echarts.init(document.getElementById('chart6'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '完播率', axisLabel: { formatter: '{value}%' } },
-        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        yAxis: { type: 'category', data: data.map((d, i) => '#' + (i + 1)).reverse() },
         series: [{ type: 'bar', data: data.map(d => (d.avgCompletionRate * 100).toFixed(1)).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#9f7aea'},{offset:1,color:'#667eea'}]) } }]
     });
 }
