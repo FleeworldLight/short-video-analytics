@@ -24,19 +24,26 @@ FILES = [
 
 def load_csv(path, types):
     rows = []
+    skipped_cols = set()
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             r = {}
             for col, val in row.items():
                 col = col.strip()
-                if col not in types:
+                key = col
+                if key not in types:
+                    key = col.split(".")[-1]
+                if key not in types:
+                    skipped_cols.add(col)
                     continue
                 try:
-                    r[camel(col)] = types[col](val.strip()) if val.strip() else None
+                    r[camel(key)] = types[key](val.strip()) if val.strip() else None
                 except (ValueError, TypeError):
-                    r[camel(col)] = None
+                    r[camel(key)] = None
             rows.append(r)
+    if skipped_cols:
+        print(f"  [warn] unknown columns skipped: {sorted(skipped_cols)}")
     return rows
 
 def main():

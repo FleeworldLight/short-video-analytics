@@ -171,12 +171,20 @@ function renderAll() {
     chart1(); chart2(); chart3(); chart4(); chart5(); chart6();
 }
 
+function isValid(d) {
+    return d && typeof d === 'object' && Object.keys(d).length > 0;
+}
+
 async function loadData() {
     const tip = document.getElementById('dataTip');
     try {
         const r = await fetch('data.json');
         if (!r.ok) throw new Error('fetch failed');
         DATA = await r.json();
+        const allEmpty = Object.values(DATA).every(arr =>
+            !Array.isArray(arr) || arr.length === 0 || arr.every(d => !isValid(d))
+        );
+        if (allEmpty) throw new Error('all data objects are empty');
         tip.textContent = '基于 KuaiRec 真实数据 · 已部署到 Pages';
     } catch (e) {
         DATA = FALLBACK;
