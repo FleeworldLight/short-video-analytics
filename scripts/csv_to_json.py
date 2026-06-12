@@ -33,9 +33,9 @@ def load_csv(path, types):
                 if col not in types:
                     continue
                 try:
-                    r[col] = types[col](val.strip()) if val.strip() else None
+                    r[camel(col)] = types[col](val.strip()) if val.strip() else None
                 except (ValueError, TypeError):
-                    r[col] = None
+                    r[camel(col)] = None
             rows.append(r)
     return rows
 
