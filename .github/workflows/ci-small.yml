@@ -124,26 +124,6 @@ jobs:
           echo "HDFS 上传完成："
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
 
-      - name: 等待 HiveMetastore 就绪
-        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
-        run: |
-          echo "等待 HiveMetastore 就绪 ..."
-          for i in $(seq 1 30); do
-            if docker exec hive-metastore \
-              bash -c "nc -z localhost 9083" > /dev/null 2>&1; then
-              echo "HiveMetastore 就绪，尝试次数：${i}"
-              break
-            fi
-            echo "第 $i/30 次尝试，等待 10s ..."
-            if [ "$i" -eq 30 ]; then
-              echo "HiveMetastore 启动失败（超过 30 次尝试）"
-              docker logs hive-metastore --tail 30 2>&1
-              docker logs hive-server --tail 10 2>&1 || true
-              exit 1
-            fi
-            sleep 10
-          done
-
       - name: 等待 HiveServer2 就绪
         if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
