@@ -1,111 +1,85 @@
 package com.shortvideo.dashboard.service;
 
 import com.shortvideo.dashboard.model.*;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 public class DashboardService {
 
-    private final List<CompletionRateByCategory> completionCategory;
-    private final List<CompletionRateByAuthor> completionAuthor;
-    private final List<UserRetention> retention;
-    private final List<ContentHotRanking> hotRanking;
-    private final List<InfluencerIndex> influencer;
-    private final List<TimePeriodAnalysis> timePeriod;
+    @Autowired
+    private JdbcTemplate jdbc;
 
-    public DashboardService(@Value("${app.data-path}") String dataPath) {
-        String base = Paths.get(System.getProperty("user.dir"), dataPath).normalize().toString();
-        this.completionCategory = readCsv(base + "/completion_rate_by_category.csv", this::mapCompletionCategory);
-        this.completionAuthor = readCsv(base + "/completion_rate_by_author.csv", this::mapCompletionAuthor);
-        this.retention = readCsv(base + "/retention.csv", this::mapRetention);
-        this.hotRanking = readCsv(base + "/hot_ranking.csv", this::mapHotRanking);
-        this.influencer = readCsv(base + "/influencer.csv", this::mapInfluencer);
-        this.timePeriod = readCsv(base + "/time_period_analysis.csv", this::mapTimePeriod);
+    public List<CompletionRateByCategory> getCompletionByCategory() {
+        return jdbc.query("SELECT tag_name, total_plays, total_completions, completion_rate FROM ads_completion_rate_by_category ORDER BY completion_rate DESC", (rs, rowNum) -> {
+            CompletionRateByCategory o = new CompletionRateByCategory();
+            o.setTagName(rs.getString("tag_name"));
+            o.setTotalPlays(rs.getLong("total_plays"));
+            o.setTotalCompletions(rs.getLong("total_completions"));
+            o.setCompletionRate(rs.getDouble("completion_rate"));
+            return o;
+        });
     }
 
-    private <T> List<T> readCsv(String path, Function<String[], T> mapper) {
-        try {
-            return Files.readAllLines(Paths.get(path))
-                    .stream()
-                    .skip(1)
-                    .filter(l -> !l.isBlank())
-                    .map(l -> l.split(",", -1))
-                    .map(mapper)
-                    .collect(Collectors.toList());
-        } catch (IOException e) {
-            System.err.println("Cannot read " + path + ": " + e.getMessage());
-            return List.of();
-        }
+    public List<CompletionRateByAuthor> getCompletionByAuthor() {
+        return jdbc.query("SELECT uploader_id, total_plays, avg_completion_rate FROM ads_completion_rate_by_author ORDER BY avg_completion_rate DESC", (rs, rowNum) -> {
+            CompletionRateByAuthor o = new CompletionRateByAuthor();
+            o.setUploaderId(rs.getInt("uploader_id"));
+            o.setTotalPlays(rs.getLong("total_plays"));
+            o.setAvgCompletionRate(rs.getDouble("avg_completion_rate"));
+            return o;
+        });
     }
 
-    private CompletionRateByCategory mapCompletionCategory(String[] c) {
-        CompletionRateByCategory o = new CompletionRateByCategory();
-        o.setTagName(c[0]);
-        o.setTotalPlays(Long.parseLong(c[1]));
-        o.setTotalCompletions(Long.parseLong(c[2]));
-        o.setCompletionRate(Double.parseDouble(c[3]));
-        return o;
+    public List<UserRetention> getRetention() {
+        return jdbc.query("SELECT report_date, dau, day1_retention, day7_retention, day30_retention FROM ads_user_retention ORDER BY report_date", (rs, rowNum) -> {
+            UserRetention o = new UserRetention();
+            o.setReportDate(rs.getString("report_date"));
+            o.setDau(rs.getLong("dau"));
+            o.setDay1Retention(rs.getDouble("day1_retention"));
+            o.setDay7Retention(rs.getDouble("day7_retention"));
+            o.setDay30Retention(rs.getDouble("day30_retention"));
+            return o;
+        });
     }
 
-    private CompletionRateByAuthor mapCompletionAuthor(String[] c) {
-        CompletionRateByAuthor o = new CompletionRateByAuthor();
-        o.setUploaderId(Integer.parseInt(c[0]));
-        o.setTotalPlays(Long.parseLong(c[1]));
-        o.setAvgCompletionRate(Double.parseDouble(c[2]));
-        return o;
+    public List<ContentHotRanking> getHotRanking() {
+        return jdbc.query("SELECT rank_no, video_id, hot_score, dt FROM ads_content_hot_ranking ORDER BY rank_no", (rs, rowNum) -> {
+            ContentHotRanking o = new ContentHotRanking();
+            o.setRankNo(rs.getInt("rank_no"));
+            o.setVideoId(rs.getInt("video_id"));
+            o.setHotScore(rs.getDouble("hot_score"));
+            o.setDt(rs.getString("dt"));
+            return o;
+        });
     }
 
-    private UserRetention mapRetention(String[] c) {
-        UserRetention o = new UserRetention();
-        o.setReportDate(c[0]);
-        o.setDau(Long.parseLong(c[1]));
-        o.setDay1Retention(Double.parseDouble(c[2]));
-        o.setDay7Retention(Double.parseDouble(c[3]));
-        o.setDay30Retention(Double.parseDouble(c[4]));
-        return o;
+    public List<InfluencerIndex> getInfluencer() {
+        return jdbc.query("SELECT rank_no, uploader_id, total_plays, avg_completion, avg_interaction, influence_score FROM ads_influencer_index ORDER BY rank_no", (rs, rowNum) -> {
+            InfluencerIndex o = new InfluencerIndex();
+            o.setRankNo(rs.getInt("rank_no"));
+            o.setUploaderId(rs.getInt("uploader_id"));
+            o.setTotalPlays(rs.getLong("total_plays"));
+            o.setAvgCompletion(rs.getDouble("avg_completion"));
+            o.setAvgInteraction(rs.getDouble("avg_interaction"));
+            o.setInfluenceScore(rs.getDouble("influence_score"));
+            return o;
+        });
     }
 
-    private ContentHotRanking mapHotRanking(String[] c) {
-        ContentHotRanking o = new ContentHotRanking();
-        o.setRankNo(Integer.parseInt(c[0]));
-        o.setVideoId(Integer.parseInt(c[1]));
-        o.setHotScore(Double.parseDouble(c[2]));
-        o.setDt(c[3]);
-        return o;
+    public List<TimePeriodAnalysis> getTimePeriod() {
+        return jdbc.query("SELECT time_period, play_count, avg_watch_ratio, like_count FROM ads_time_period_analysis ORDER BY play_count DESC", (rs, rowNum) -> {
+            TimePeriodAnalysis o = new TimePeriodAnalysis();
+            o.setTimePeriod(rs.getString("time_period"));
+            o.setPlayCount(rs.getLong("play_count"));
+            o.setAvgWatchRatio(rs.getDouble("avg_watch_ratio"));
+            o.setLikeCount(rs.getLong("like_count"));
+            return o;
+        });
     }
-
-    private InfluencerIndex mapInfluencer(String[] c) {
-        InfluencerIndex o = new InfluencerIndex();
-        o.setRankNo(Integer.parseInt(c[0]));
-        o.setUploaderId(Integer.parseInt(c[1]));
-        o.setTotalPlays(Long.parseLong(c[2]));
-        o.setAvgCompletion(Double.parseDouble(c[3]));
-        o.setAvgInteraction(Double.parseDouble(c[4]));
-        o.setInfluenceScore(Double.parseDouble(c[5]));
-        return o;
-    }
-
-    private TimePeriodAnalysis mapTimePeriod(String[] c) {
-        TimePeriodAnalysis o = new TimePeriodAnalysis();
-        o.setTimePeriod(c[0]);
-        o.setPlayCount(Long.parseLong(c[1]));
-        o.setAvgWatchRatio(Double.parseDouble(c[2]));
-        o.setLikeCount(Long.parseLong(c[3]));
-        return o;
-    }
-
-    public List<CompletionRateByCategory> getCompletionByCategory() { return completionCategory; }
-    public List<CompletionRateByAuthor> getCompletionByAuthor() { return completionAuthor; }
-    public List<UserRetention> getRetention() { return retention; }
-    public List<ContentHotRanking> getHotRanking() { return hotRanking; }
-    public List<InfluencerIndex> getInfluencer() { return influencer; }
-    public List<TimePeriodAnalysis> getTimePeriod() { return timePeriod; }
 }

@@ -1,18 +1,46 @@
 #!/bin/bash
 set -e
 
+# 短视频内容分析系统 — 本地全流程测试脚本
+# 功能：一键执行从原始数据准备 → HDFS初始化 → Hive清洗建表
+#       → KPI计算 → 结果导出 → MySQL导入 的完整流水线
+# 步骤0：准备原始数据样本（前1000行）
+# 步骤1：初始化 HDFS 目录并上传样本数据
+# 步骤2：执行 HiveQL 建表（DDL）和清洗（ODS→DWD）
+# 步骤3：构建维度表（dim_category, dim_creator）
+# 步骤4：计算 6 个 KPI 指标
+# 步骤5：验证 ADS 表数据量
+# 步骤6：导出 DWD 清洗样例（前100行）
+# 步骤7：导出 ADS 结果表为 CSV
+# 步骤8：将 CSV 导入 MySQL
+
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 HDFS_BASE="/data/short_video"
 MYSQL_USER="root"
 MYSQL_PASS="123456"
 MYSQL_DB="short_video"
 
-echo "=========================================="
-echo "  Local VM 全流程测试脚本"
-echo "=========================================="
+echo "本地测试全流程测试脚本"
 
+# 步骤0：准备原始数据样本（前1000行）
+# 从全量数据 big_matrix.csv 截取前 1000 行（含表头）作为样本，避免在全量数据上反复调试
 echo ""
-echo "=== Step 1: Init HDFS ==="
+echo "步骤0：准备原始数据样本（前1000行）"
+SAMPLE_FILE="$ROOT_DIR/数据样例/big_matrix_1000.csv"
+FULL_DATA="$ROOT_DIR/KuaiRec/KuaiRec 2.0/data/big_matrix.csv"
+if [ ! -f "$SAMPLE_FILE" ] && [ -f "$FULL_DATA" ]; then
+  echo "  从全量数据截取前1000行 ..."
+  head -n 1001 "$FULL_DATA" > "$SAMPLE_FILE"
+  echo "  已生成：$(wc -l < "$SAMPLE_FILE") 行（含表头）"
+elif [ -f "$SAMPLE_FILE" ]; then
+  echo "  样本文件已存在，跳过生成"
+else
+  echo "  全量数据不存在（$FULL_DATA），跳过样本生成"
+fi
+
+# 步骤1：初始化 HDFS 目录并上传样本数据
+echo ""
+echo "步骤1：初始化HDFS"
 hdfs dfs -mkdir -p $HDFS_BASE/raw/ods_interaction
 hdfs dfs -mkdir -p $HDFS_BASE/raw/ods_item_category
 hdfs dfs -mkdir -p $HDFS_BASE/raw/ods_user_feature
@@ -21,18 +49,20 @@ hdfs dfs -mkdir -p $HDFS_BASE/dwd
 hdfs dfs -mkdir -p $HDFS_BASE/dws
 hdfs dfs -mkdir -p $HDFS_BASE/ads
 
-hdfs dfs -put -f "$ROOT_DIR/数据样例/big_matrix_sample.csv"         $HDFS_BASE/raw/ods_interaction/
+hdfs dfs -put -f "$ROOT_DIR/数据样例/big_matrix_1000.csv"         $HDFS_BASE/raw/ods_interaction/
 hdfs dfs -put -f "$ROOT_DIR/数据样例/item_categories_sample.csv"    $HDFS_BASE/raw/ods_item_category/
 hdfs dfs -put -f "$ROOT_DIR/数据样例/user_features_raw_sample.csv"  $HDFS_BASE/raw/ods_user_feature/
 hdfs dfs -put -f "$ROOT_DIR/数据样例/item_daily_features_sample.csv" $HDFS_BASE/raw/ods_item_daily/
 
+# 步骤2：执行 HiveQL 建表（DDL）和清洗（ODS→DWD）
 echo ""
-echo "=== Step 2: Create tables & clean data (ODS -> DWD) ==="
+echo "步骤2：建表并清洗数据（ODS → DWD）"
 hive -f "$ROOT_DIR/脚本/2_create_tables.hql"
 hive -f "$ROOT_DIR/脚本/1_clean_data.hql"
 
+# 步骤3：构建维度表（dim_category 手动16条、dim_creator 聚合统计）
 echo ""
-echo "=== Step 3: Build dimension tables ==="
+echo "步骤3：构建维度表"
 hive -e "
   INSERT OVERWRITE TABLE dim_category VALUES
     (1, 'Gaming', '娱乐'), (2, 'Music', '艺术'), (5, 'Fashion', '生活'),
@@ -53,13 +83,15 @@ hive -e "
   GROUP BY author_id;
 "
 
+# 步骤4：计算 6 个 KPI 指标
 echo ""
-echo "=== Step 4: KPI calculations ==="
+echo "步骤4：KPI指标计算"
 hive -f "$ROOT_DIR/脚本/3_kpi_completion_rate.hql"
 hive -f "$ROOT_DIR/脚本/4_kpi_retention.hql"
 hive -f "$ROOT_DIR/脚本/5_kpi_hot_ranking.hql"
 hive -f "$ROOT_DIR/脚本/6_kpi_influencer.hql"
 
+# 时段分析（直接写入 ADS，无需独立 HQL 文件）
 hive -e "
   INSERT OVERWRITE TABLE ads_time_period_analysis
   SELECT
@@ -72,8 +104,9 @@ hive -e "
   ORDER BY play_count DESC;
 "
 
+# 步骤4b：从 DWD 表提取不重复日期，展开为年/月/日/星期/季度
 echo ""
-echo "=== Step 4b: Build dim_date ==="
+echo "步骤4b：构建日期维度表"
 hive -e "
   INSERT OVERWRITE TABLE dim_date
   SELECT
@@ -95,8 +128,9 @@ hive -e "
   ORDER BY date_id;
 "
 
+# 步骤5：验证 6 张 ADS 表数据量
 echo ""
-echo "=== Step 5: Verify ADS tables ==="
+echo "步骤5：验证ADS表"
 hive -e "
   SELECT 'completion_rate_by_category' AS tbl, COUNT(*) FROM ads_completion_rate_by_category
   UNION ALL
@@ -111,10 +145,22 @@ hive -e "
   SELECT 'time_period_analysis',        COUNT(*) FROM ads_time_period_analysis;
 "
 
+# 步骤6：导出 DWD 清洗样例（前100行）
 echo ""
-echo "=== Step 6: Export ADS to CSV ==="
+echo "步骤6：导出DWD清洗样例（前100行）"
+hive -e "
+  SET hive.cli.print.header=true;
+  SELECT *
+  FROM dwd_interaction_detail
+  LIMIT 100;
+" | tr '\011' ',' > "$ROOT_DIR/结果数据/dwd_sample.csv"
+
+# 步骤7：导出 6 张 ADS 表为 CSV（同时供步骤8 MySQL 导入用）
+echo ""
+echo "步骤7：导出ADS结果表为CSV"
 mkdir -p "$ROOT_DIR/结果数据"
 
+# ADS_MAP 格式：Hive表名（去掉 ads_ 前缀）:CSV文件名（不含扩展名）
 ADS_MAP=(
   "completion_rate_by_category:completion_rate_by_category"
   "completion_rate_by_author:completion_rate_by_author"
@@ -127,18 +173,19 @@ ADS_MAP=(
 for entry in "${ADS_MAP[@]}"; do
   tbl="${entry%%:*}"
   csv_name="${entry#*:}"
-  echo "Exporting $tbl -> $csv_name.csv ..."
+  echo "  导出 $tbl → $csv_name.csv ..."
   hive -e "SELECT * FROM ads_$tbl" \
     | tr '\011' ',' \
     | tail -n +2 \
     > "$ROOT_DIR/结果数据/$csv_name.csv"
 done
 
-echo "CSV files:"
-ls -la "$ROOT_DIR/结果数据/"*.csv 2>/dev/null || echo "  (empty)"
+echo "  CSV文件："
+ls -la "$ROOT_DIR/结果数据/"*.csv 2>/dev/null || echo "  (空)"
 
+# 步骤8：导入 CSV 到 MySQL（建库建表 + LOAD DATA）
 echo ""
-echo "=== Step 7: Import into MySQL ==="
+echo "步骤8：导入MySQL"
 
 mysql -u $MYSQL_USER -p$MYSQL_PASS -e "SET GLOBAL local_infile = 1;"
 mysql -u $MYSQL_USER -p$MYSQL_PASS --local-infile <<EOF
@@ -178,14 +225,14 @@ for entry in "${ADS_MAP[@]}"; do
   csv_name="${entry#*:}"
   CSV="$ROOT_DIR/结果数据/$csv_name.csv"
   if [ -f "$CSV" ]; then
-    echo "Loading $CSV into ads_$tbl ..."
+    echo "  导入 $CSV 到 ads_$tbl ..."
     mysql -u $MYSQL_USER -p$MYSQL_PASS --local-infile $MYSQL_DB \
       -e "LOAD DATA LOCAL INFILE '$CSV' INTO TABLE ads_$tbl FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n';"
   fi
 done
 
 echo ""
-echo "Verifying MySQL data:"
+echo "  验证MySQL数据："
 mysql -u $MYSQL_USER -p$MYSQL_PASS --local-infile -e "
 USE $MYSQL_DB;
 SELECT 'completion_rate_by_category', COUNT(*) FROM ads_completion_rate_by_category
@@ -197,6 +244,4 @@ UNION ALL SELECT 'time_period_analysis', COUNT(*) FROM ads_time_period_analysis;
 "
 
 echo ""
-echo "=========================================="
-echo "  Pipeline complete!"
-echo "=========================================="
+echo "流水线执行完成！"

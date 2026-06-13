@@ -1,6 +1,7 @@
 # 短视频平台内容分析系统
 
-基于 **KuaiRec 2.0**（快手真实用户行为数据）的数据仓库 + 可视化分析系统。
+基于 **KuaiRec 2.0**（快手真实用户行为数据）的离线数仓 + 可视化分析系统。
+四层架构（ODS → DWD → DWS → ADS），Docker 一站式部署。
 
 ## 技术栈
 
@@ -8,21 +9,21 @@
 |---|---|
 | 数据存储 & 计算 | Hadoop HDFS + Hive + Spark |
 | 容器编排 | Docker Compose（单节点集群） |
-| 后端 API | Spring Boot 2.7（CSV 直读，无需数据库） |
+| 后端 API | Spring Boot 2.7 / JDBC Template → MySQL |
 | 前端可视化 | ECharts 5 + Axios |
 
 ## 架构
 
 ```
-KuaiRec CSV 原始数据
+KuaiRec CSV 原始数据 (~1GB)
     │
     ▼
 ┌─── ODS 层（原始数据，CSV 格式）──────────────┐
 │  ods_raw_interaction / item_category / ...   │
 └──────────────────┬────────────────────────────┘
-                   │ 数据清洗：过滤异常、去重、衍生字段
+                   │ Hive ETL：过滤异常、去重、衍生字段
                    ▼
-┌─── DWD 层（清洗明细，ORC+Snappy）────────────┐
+┌─── DWD 层（清洗明细，ORC + Snappy）──────────┐
 │  dwd_interaction_detail                      │
 └──────────────────┬────────────────────────────┘
                    │ 轻度聚合
@@ -30,44 +31,37 @@ KuaiRec CSV 原始数据
 ┌─── DWS 层（聚合数据）────────────────────────┐
 │  dws_user_daily / video_daily / ...          │
 └──────────────────┬────────────────────────────┘
-                   │ KPI 计算
+                   │ KPI 指标计算
                    ▼
-┌─── ADS 层（指标结果）────────────────────────┐
+┌─── ADS 层（应用指标结果）─────────────────────┐
 │  completion_rate / retention / hot_ranking   │
 │  influencer / time_period_analysis           │
-└──────────────────┬────────────────────────────┘
-                   │ 导出 CSV → 可视化
-                   ▼
-           Spring Boot + ECharts 仪表盘
+└────────┬──────────────────────────┬───────────┘
+         │ 导出 CSV                 │ 导入 MySQL
+         ▼                          ▼
+   GitHub Pages             Spring Boot + ECharts
+  (docs/index.html)            (localhost:8080)
 ```
 
-## 快速开始（无需 Docker）
+## 可视化前端
 
-### 前置条件
+| 方案 | 启动方式 | 数据来源 |
+|---|---|---|
+| **GitHub Pages** | CI 自动部署（push main） | `结果数据/*.csv` → `docs/data.json` |
+| **Spring Boot 仪表盘** | `mvn spring-boot:run` | MySQL（`localhost:3306/short_video`） |
 
-- JDK 21+
-- Maven 3.9+
+## KPI 指标
 
-### 步骤
+| KPI | 公式 | ADS 表 |
+|---|---|---|
+| **完播率（按类别）** | `SUM(completion_flag) / COUNT(*)` | `ads_completion_rate_by_category` |
+| **完播率（按创作者）** | `AVG(completion_flag)` | `ads_completion_rate_by_author` |
+| **用户留存率** | 次日/7日/30日留存用户 / 当日活跃用户 | `ads_user_retention` |
+| **内容热度排行 Top 50** | `completion_flag×0.30 + watch_ratio×0.20 + LOG(play_count+1)×0.15 + like_flag×0.15 + comment_flag×0.10 + share_flag×0.10` | `ads_content_hot_ranking` |
+| **创作者影响力 Top 20** | `completion_flag×0.25 + like_flag×0.15 + comment_flag×0.15 + share_flag×0.10 + LOG(play_count+1)×0.35` | `ads_influencer_index` |
+| **时段播放分析** | 按 6 个时段（凌晨/上午/中午/下午/晚间/深夜）聚合播放量 | `ads_time_period_analysis` |
 
-```bash
-# 1. 进入 dashboard 模块
-cd 可视化源码/dashboard
-
-# 2. 启动（IDEA 中直接运行 DashboardApplication.main() 亦可）
-mvn spring-boot:run
-
-# 3. 打开浏览器
-open http://localhost:8080
-```
-
-仪表盘直接从 `结果数据/*.csv` 加载数据，无需安装任何数据库。
-
-> 如果 CSV 文件路径不对，修改 `application.yml` 中的 `app.data-path` 为正确路径。
-
-## 全流程运行（需要 Docker）
-
-完整的数据清洗 → 维度建模 → KPI 计算 → 导出流程：
+## 全流程运行（Docker）
 
 ```bash
 cd docker
@@ -75,51 +69,68 @@ chmod +x run.sh
 ./run.sh
 ```
 
-该脚本会自动：
-1. 启动 Hadoop / Hive / Spark / MySQL 集群
-2. 上传数据到 HDFS
-3. 执行 HiveQL 建表 & ETL（ODS → DWD → DWS → ADS）
-4. 计算 4 个 KPI + 1 个附加分析
-5. 导出结果到 `结果数据/*.csv`
-6. 导入到 MySQL
+一键执行：启动 9 个容器 → 上传数据到 HDFS → Hive 建表 & ETL（ODS → DWD → DWS → ADS）→ 6 个 KPI 计算 → 导出 CSV → 导入 MySQL → 启动可视化面板。
 
-## KPI 说明
+## 本地开发（无需 Docker）
 
-| KPI | 公式 | ADS 表 |
-|-----|------|--------|
-| **完播率**（按类别） | `SUM(completion_flag) / COUNT(*)` | `ads_completion_rate_by_category` |
-| **完播率**（按创作者） | `AVG(completion_flag)` | `ads_completion_rate_by_author` |
-| **用户留存率**（日/7日/30日） | `留存用户 / 当日活跃用户` | `ads_user_retention` |
-| **内容热度排行** | `completion_flag×0.35 + watch_ratio×0.25 + LOG(play_count+1)×0.20 + like_flag×0.20` | `ads_content_hot_ranking` |
-| **创作者影响力指数** | `avg_completion×0.3 + avg_like×0.3 + LOG(play_count+1)×0.4` | `ads_influencer_index` |
-| **时段播放分析** | 按 6 个时段聚合播放量 | `ads_time_period_analysis` |
+```bash
+# 前置条件：JDK 21+，Maven 3.9+
+# 结果数据/ 目录下需有 6 个 KPI CSV 文件
+
+cd 可视化源码/dashboard
+mvn spring-boot:run
+# 访问 http://localhost:8080
+```
 
 ## 项目结构
 
 ```
 ├── docker/
-│   ├── docker-compose.yml      # 9 个容器 + 4 个卷
-│   └── run.sh                  # 一键全流程
+│   ├── docker-compose.yml      # 9 个容器（Hadoop/Hive/Spark/MySQL）
+│   ├── run.sh                  # 一键全流程脚本
+│   ├── core-site.xml           # Hadoop core-site 配置
+│   └── postgresql-42.5.1.jar  # Hive Metastore JDBC 驱动
 ├── 脚本/
-│   └── *.hql / *.sh            # HiveQL ETL + KPI 脚本
+│   ├── 1_clean_data.hql        # ODS→DWD 清洗 + DWS 聚合（364 行）
+│   ├── 2_create_tables.hql     # 四层表 DDL（312 行）
+│   ├── 3_kpi_completion_rate.hql
+│   ├── 4_kpi_retention.hql
+│   ├── 5_kpi_hot_ranking.hql
+│   ├── 6_kpi_influencer.hql
+│   ├── csv_to_json.py          # CSV → JSON（CI GitHub Pages 用）
+│   └── test_local.sh           # VM 本地全流程（无 Docker）
 ├── 可视化源码/
 │   ├── preview.html            # 纯前端预览（mock 数据）
 │   └── dashboard/              # Spring Boot 后端 + ECharts 前端
 │       └── src/main/
 │           ├── java/.../controller/   # REST API（6 个端点）
-│           ├── java/.../service/      # CSV 数据加载
+│           ├── java/.../service/      # JDBC Template 查询
 │           ├── java/.../model/        # 6 个 POJO
 │           └── resources/static/      # ECharts 仪表盘页面
-├── 结果数据/                   # KPI 计算结果 CSV
-├── 数据样例/                   # KuaiRec 2.0 样本（前 100 行）
-└── 文档/
-    └── 项目计划.md             # 完整实施计划 & 数据字典
+├── 结果数据/                   # 6 个 KPI 结果 CSV
+├── 数据样例/                   # KuaiRec 2.0 样本（前 1000 行）
+├── docs/                       # GitHub Pages 部署目录
+│   ├── index.html              # ECharts 仪表盘（CI 部署）
+│   ├── data.json               # 6 个 KPI 合并 JSON
+│   └── .nojekyll
+├── 数据/                       # 额外数据（标签映射等）
+├── KuaiRec/                    # 全量数据集（本地，不上传）
+├── 文档/                       # 项目计划 & 数据字典
+└── .github/workflows/ci.yml   # CI 流水线（全量数据 → Pages）
 ```
+
+## CI / CD
+
+push 到 `main` 分支触发 GitHub Actions：
+
+1. 从 Zenodo 下载 KuaiRec 2.0 全量数据集（~1GB）
+2. 启动 Docker 集群，上传数据到 HDFS
+3. 执行 Hive ETL + 6 个 KPI 计算
+4. 导出 CSVs，生成 `docs/data.json`
+5. 部署 `docs/` 到 GitHub Pages
+
+手动触发（跳过 KPI 计算，使用已有结果）：GitHub → Actions → workflow_dispatch → `skip-kpi: true`
 
 ## 数据来源
 
 [KuaiRec 2.0](https://kuairec.com/) — 快手真实用户行为数据集，收录 2020 年 7 月至 9 月的用户-视频交互数据。
-
-## 许可证
-
-MIT

@@ -1,3 +1,7 @@
+-- KPI 3: 内容热度排行（Top 50）
+-- 综合评分 = 完播率×0.30 + 观看比例×0.20 + 播放量对数×0.15 +
+--            点赞率×0.15 + 评论率×0.10 + 分享率×0.10
+
 SET hive.exec.dynamic.partition = true;
 SET hive.exec.dynamic.partition.mode = nonstrict;
 
@@ -10,7 +14,7 @@ SELECT
 FROM (
   SELECT
     video_id,
-    dt,
+    MAX(dt) AS dt,
     ROUND(
         AVG(completion_flag)          * 0.30
       + AVG(watch_ratio)              * 0.20
@@ -20,7 +24,7 @@ FROM (
       + AVG(COALESCE(share_flag,0))   * 0.10
     , 4) AS hot_score
   FROM dwd_interaction_detail
-  GROUP BY video_id, dt
+  GROUP BY video_id
 ) t
 ORDER BY hot_score DESC
 LIMIT 50;

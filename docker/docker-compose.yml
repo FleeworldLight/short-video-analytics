@@ -13,7 +13,7 @@ services:
       - HDFS_CONF_dfs_permissions_enabled=false
     volumes:
       - namenode:/hadoop/dfs/name
-      - ../data/samples:/data/samples
+      - ../数据样例:/data/samples
     networks:
       - hadoop-net
 
@@ -103,8 +103,8 @@ services:
     volumes:
       - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
       - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
-      - ../scripts:/scripts
-      - ../data/samples:/data/samples
+      - ../脚本:/scripts
+      - ../数据样例:/data/samples
     networks:
       - hadoop-net
 
@@ -127,9 +127,9 @@ services:
     volumes:
       - ./postgresql-42.5.1.jar:/opt/hive/lib/postgres.jar
       - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
-      - ../scripts:/scripts
-      - ../data/samples:/data/samples
-      - ../results:/results
+      - ../脚本:/scripts
+      - ../数据样例:/data/samples
+      - ../结果数据:/results
     networks:
       - hadoop-net
 
@@ -161,7 +161,7 @@ services:
     command: ["mysqld", "--local-infile=1"]
     volumes:
       - mysql-data:/var/lib/mysql
-      - ../results:/import
+      - ../结果数据:/import
     networks:
       - hadoop-net
 

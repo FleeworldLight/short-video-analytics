@@ -1,6 +1,11 @@
+-- KPI 1: 完播率分布（按品类 & 按创作者）
+-- 品类完播率 = 该品类完播次数 / 总播放次数
+-- 作者完播率 = 该创作者所有视频平均完播率
+
 SET hive.exec.dynamic.partition = true;
 SET hive.exec.dynamic.partition.mode = nonstrict;
 
+-- 按品类聚合：关联 dim_category 获取品类名称
 INSERT OVERWRITE TABLE ads_completion_rate_by_category
 SELECT
   c.tag_name,
@@ -20,6 +25,7 @@ JOIN dim_category c ON c.tag_id = CAST(tmp.tag_str AS INT)
 GROUP BY c.tag_name
 ORDER BY completion_rate DESC;
 
+-- 按创作者聚合：关联 dim_video 获取 uploader_id
 INSERT OVERWRITE TABLE ads_completion_rate_by_author
 SELECT
   v.uploader_id,

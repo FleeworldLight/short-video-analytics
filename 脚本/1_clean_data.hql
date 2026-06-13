@@ -1,3 +1,12 @@
+-- 短视频内容分析系统 — 数据清洗与聚合（ODS → DWD → DWS）
+-- 执行流程：
+--   1. 再次 CREATE TABLE（幂等）确保表存在
+--   2. 清洗 ODS 数据写入 DWD（去重、过滤异常、派生字段）
+--   3. 构建 dim_user / dim_video 维度表
+--   4. 计算 DWS 层每日聚合
+
+-- DDL（幂等建表）：确保依赖表存在
+
 CREATE EXTERNAL TABLE IF NOT EXISTS ods_raw_interaction (
   user_id          INT,
   video_id         INT,
@@ -43,25 +52,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS ods_raw_user_feature (
   friend_user_num     INT,
   friend_user_num_range STRING,
   register_days       INT,
-  register_days_range STRING,
-  onehot_feat0        INT,
-  onehot_feat1        INT,
-  onehot_feat2        INT,
-  onehot_feat3        INT,
-  onehot_feat4        INT,
-  onehot_feat5        INT,
-  onehot_feat6        INT,
-  onehot_feat7        INT,
-  onehot_feat8        INT,
-  onehot_feat9        INT,
-  onehot_feat10       INT,
-  onehot_feat11       INT,
-  onehot_feat12       INT,
-  onehot_feat13       INT,
-  onehot_feat14       INT,
-  onehot_feat15       INT,
-  onehot_feat16       INT,
-  onehot_feat17       INT
+  register_days_range STRING
 )
 ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 WITH SERDEPROPERTIES (
@@ -162,9 +153,19 @@ PARTITIONED BY (dt STRING)
 STORED AS ORC
 TBLPROPERTIES ("orc.compress" = "SNAPPY");
 
+-- ODS → DWD 清洗：去重、过滤异常、派生字段
+
 SET hive.exec.dynamic.partition = true;
 SET hive.exec.dynamic.partition.mode = nonstrict;
 
+-- 清洗逻辑：
+--   1. 按 user_id, video_id, date 分组，取最大时间戳的行（去重）
+--   2. 过滤异常值：播放时长 > 0，视频时长 > 0，播放时长不超过视频时长的3倍
+--   3. 派生字段：
+--      - completion_flag: watch_ratio>=1 视为完播
+--      - like_flag: watch_ratio>2 视为高兴趣
+--      - time_period: 按小时划分为 凌晨/上午/中午/下午/晚间/深夜
+--   4. 关联品类标签、评论/分享数据
 INSERT OVERWRITE TABLE dwd_interaction_detail PARTITION (dt)
 SELECT
   i.user_id,
@@ -214,6 +215,9 @@ LEFT JOIN (
   ON i.video_id = df.video_id AND i.`date` = df.`date`
 WHERE i.rn = 1;
 
+-- 构建维度表：dim_user（用户画像）、dim_video（视频信息）
+
+-- dim_user：从原始用户特征表导入，去空ID
 CREATE TABLE IF NOT EXISTS dim_user (
   user_id             INT,
   user_active_degree  STRING,
@@ -242,6 +246,7 @@ SELECT
 FROM ods_raw_user_feature
 WHERE user_id IS NOT NULL;
 
+-- dim_video：关联交互表（去重）和品类表、每日特征表，聚合视频信息
 CREATE TABLE IF NOT EXISTS dim_video (
   video_id       INT,
   duration_sec   DOUBLE,
@@ -267,6 +272,9 @@ LEFT JOIN (
   FROM ods_raw_item_daily_features
 ) d ON i.video_id = d.video_id;
 
+-- DWS 每日聚合计算：用户/视频/品类/周粒度
+
+-- dws_user_daily_agg：用户粒度日聚合
 CREATE TABLE IF NOT EXISTS dws_user_daily_agg (
   user_id           INT,
   video_count       BIGINT,
@@ -291,6 +299,7 @@ SELECT
 FROM dwd_interaction_detail
 GROUP BY user_id, dt;
 
+-- dws_video_daily_agg：视频粒度日聚合，含热度评分
 CREATE TABLE IF NOT EXISTS dws_video_daily_agg (
   video_id           INT,
   play_count         BIGINT,
@@ -312,6 +321,7 @@ SELECT
   SUM(completion_flag)  AS completion_count,
   ROUND(AVG(watch_ratio), 4) AS avg_completion,
   SUM(like_flag)        AS like_count,
+  -- 热度评分 = 完播率×0.3 + 观看比例×0.2 + 播放量对数×0.15 + 点赞率×0.15 + 评论率×0.10 + 分享率×0.10
   ROUND(
       AVG(completion_flag)          * 0.30
     + AVG(watch_ratio)              * 0.20
@@ -324,6 +334,8 @@ SELECT
 FROM dwd_interaction_detail
 GROUP BY video_id, dt;
 
+-- dws_category_daily_agg：品类粒度日聚合
+-- 使用 LATERAL VIEW explode 将多标签展开为单行
 CREATE TABLE IF NOT EXISTS dws_category_daily_agg (
   tag_id             INT,
   play_count         BIGINT,
@@ -346,6 +358,7 @@ LATERAL VIEW explode(split(regexp_replace(d.category_ids, '\\[|\\]', ''), ',')) 
 WHERE tag_str IS NOT NULL AND tag_str != ''
 GROUP BY CAST(tag_str AS INT), d.dt;
 
+-- dws_user_weekly_agg：用户周聚合（用于留存分析）
 CREATE TABLE IF NOT EXISTS dws_user_weekly_agg (
   user_id           INT,
   week_start        STRING,
@@ -362,6 +375,7 @@ TBLPROPERTIES ("orc.compress" = "SNAPPY");
 INSERT OVERWRITE TABLE dws_user_weekly_agg PARTITION (dt)
 SELECT
   user_id,
+  -- 计算周一的日期（作为周标识）
   date_sub(
     from_unixtime(unix_timestamp(event_date, 'yyyyMMdd'), 'yyyy-MM-dd'),
     CAST(from_unixtime(unix_timestamp(event_date, 'yyyyMMdd'), 'u') AS INT) - 1

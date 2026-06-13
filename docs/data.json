@@ -1,0 +1,433 @@
+{
+  "completionCategory": [
+    {
+      "tagName": "Agriculture",
+      "totalPlays": 1,
+      "completionRate": 1.0
+    },
+    {
+      "tagName": "Gaming",
+      "totalPlays": 2,
+      "completionRate": 1.0
+    },
+    {
+      "tagName": "Other",
+      "totalPlays": 1,
+      "completionRate": 1.0
+    },
+    {
+      "tagName": "Film",
+      "totalPlays": 7,
+      "completionRate": 0.7143
+    },
+    {
+      "tagName": "Life",
+      "totalPlays": 16,
+      "completionRate": 0.625
+    },
+    {
+      "tagName": "Cars",
+      "totalPlays": 2,
+      "completionRate": 0.5
+    },
+    {
+      "tagName": "Music",
+      "totalPlays": 6,
+      "completionRate": 0.5
+    },
+    {
+      "tagName": "Fashion",
+      "totalPlays": 10,
+      "completionRate": 0.5
+    },
+    {
+      "tagName": "Comedy",
+      "totalPlays": 6,
+      "completionRate": 0.5
+    },
+    {
+      "tagName": "Food",
+      "totalPlays": 6,
+      "completionRate": 0.5
+    },
+    {
+      "tagName": "Sports",
+      "totalPlays": 2,
+      "completionRate": 0.5
+    },
+    {
+      "tagName": "Entertainment",
+      "totalPlays": 6,
+      "completionRate": 0.3333
+    },
+    {
+      "tagName": "News",
+      "totalPlays": 7,
+      "completionRate": 0.2857
+    },
+    {
+      "tagName": "Photography",
+      "totalPlays": 2,
+      "completionRate": 0.0
+    }
+  ],
+  "retention": [
+    {
+      "reportDate": "20200705",
+      "dau": 1,
+      "day1Retention": 1.0,
+      "day7Retention": 0.0,
+      "day30Retention": 0.0
+    },
+    {
+      "reportDate": "20200706",
+      "dau": 1,
+      "day1Retention": 1.0,
+      "day7Retention": 0.0,
+      "day30Retention": 0.0
+    },
+    {
+      "reportDate": "20200707",
+      "dau": 1,
+      "day1Retention": 0.0,
+      "day7Retention": 0.0,
+      "day30Retention": 0.0
+    }
+  ],
+  "hotRanking": [
+    {
+      "rankNo": 1,
+      "videoId": 9568,
+      "hotScore": 1.405,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 2,
+      "videoId": 211,
+      "hotScore": 1.3857,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 3,
+      "videoId": 217,
+      "hotScore": 1.3552,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 4,
+      "videoId": 8220,
+      "hotScore": 1.3213,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 5,
+      "videoId": 133,
+      "hotScore": 1.3032,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 6,
+      "videoId": 8259,
+      "hotScore": 1.2895,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 7,
+      "videoId": 228,
+      "hotScore": 1.2863,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 8,
+      "videoId": 8242,
+      "hotScore": 1.2814,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 9,
+      "videoId": 1943,
+      "hotScore": 1.275,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 10,
+      "videoId": 6812,
+      "hotScore": 1.2416,
+      "dt": "20200705"
+    },
+    {
+      "rankNo": 11,
+      "videoId": 8264,
+      "hotScore": 1.2398,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 12,
+      "videoId": 179,
+      "hotScore": 1.2281,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 13,
+      "videoId": 6811,
+      "hotScore": 1.2246,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 14,
+      "videoId": 5274,
+      "hotScore": 1.2129,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 15,
+      "videoId": 8239,
+      "hotScore": 1.2072,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 16,
+      "videoId": 9594,
+      "hotScore": 0.9865,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 17,
+      "videoId": 6801,
+      "hotScore": 0.9726,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 18,
+      "videoId": 1988,
+      "hotScore": 0.9609,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 19,
+      "videoId": 229,
+      "hotScore": 0.9342,
+      "dt": "20200707"
+    },
+    {
+      "rankNo": 20,
+      "videoId": 8283,
+      "hotScore": 0.9331,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 21,
+      "videoId": 9645,
+      "hotScore": 0.9247,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 22,
+      "videoId": 3650,
+      "hotScore": 0.9091,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 23,
+      "videoId": 5265,
+      "hotScore": 0.8877,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 24,
+      "videoId": 8260,
+      "hotScore": 0.8848,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 25,
+      "videoId": 8228,
+      "hotScore": 0.8817,
+      "dt": "20200705"
+    },
+    {
+      "rankNo": 26,
+      "videoId": 1975,
+      "hotScore": 0.8752,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 27,
+      "videoId": 1986,
+      "hotScore": 0.8694,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 28,
+      "videoId": 5293,
+      "hotScore": 0.8644,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 29,
+      "videoId": 254,
+      "hotScore": 0.8595,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 30,
+      "videoId": 3714,
+      "hotScore": 0.8536,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 31,
+      "videoId": 5219,
+      "hotScore": 0.8494,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 32,
+      "videoId": 3672,
+      "hotScore": 0.8491,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 33,
+      "videoId": 110,
+      "hotScore": 0.8408,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 34,
+      "videoId": 169,
+      "hotScore": 0.8402,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 35,
+      "videoId": 5233,
+      "hotScore": 0.8236,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 36,
+      "videoId": 237,
+      "hotScore": 0.8224,
+      "dt": "20200707"
+    },
+    {
+      "rankNo": 37,
+      "videoId": 2040,
+      "hotScore": 0.8205,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 38,
+      "videoId": 8248,
+      "hotScore": 0.8116,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 39,
+      "videoId": 1997,
+      "hotScore": 0.8088,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 40,
+      "videoId": 3649,
+      "hotScore": 0.807,
+      "dt": "20200705"
+    },
+    {
+      "rankNo": 41,
+      "videoId": 6767,
+      "hotScore": 0.8048,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 42,
+      "videoId": 9653,
+      "hotScore": 0.8041,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 43,
+      "videoId": 6757,
+      "hotScore": 0.8002,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 44,
+      "videoId": 9598,
+      "hotScore": 0.7997,
+      "dt": "20200705"
+    },
+    {
+      "rankNo": 45,
+      "videoId": 5326,
+      "hotScore": 0.7987,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 46,
+      "videoId": 2006,
+      "hotScore": 0.79,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 47,
+      "videoId": 5331,
+      "hotScore": 0.7829,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 48,
+      "videoId": 1915,
+      "hotScore": 0.7795,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 49,
+      "videoId": 6731,
+      "hotScore": 0.7768,
+      "dt": "20200706"
+    },
+    {
+      "rankNo": 50,
+      "videoId": 233,
+      "hotScore": 0.7714,
+      "dt": "20200707"
+    }
+  ],
+  "influencer": [
+    {
+      "rankNo": 1,
+      "uploaderId": 3309,
+      "totalPlays": 1,
+      "avgCompletion": 0.0,
+      "avgInteraction": 0.0,
+      "influenceScore": 0.2773
+    }
+  ],
+  "timePeriod": [
+    {
+      "timePeriod": "凌晨",
+      "playCount": 58,
+      "avgWatchRatio": 0.9543
+    },
+    {
+      "timePeriod": "上午",
+      "playCount": 28,
+      "avgWatchRatio": 0.8972
+    },
+    {
+      "timePeriod": "深夜",
+      "playCount": 12,
+      "avgWatchRatio": 1.1233
+    }
+  ],
+  "completionAuthor": [
+    {
+      "uploaderId": 3309,
+      "totalPlays": 1,
+      "avgCompletionRate": 0.0
+    }
+  ]
+}

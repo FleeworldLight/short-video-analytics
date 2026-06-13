@@ -1,28 +1,41 @@
+"""
+短视频内容分析系统 — CSV 转 JSON
+功能：将 结果数据/ 目录下的 ADS 结果 CSV 转换为 docs/data.json，
+      供前端可视化展示（ECharts 等）使用。
+转换规则：
+  - 列名下划线命名 → 驼峰命名（如 play_count → playCount）
+  - 按配置的类型（str/int/float）自动转换类型
+  - 忽略未在配置中定义的列
+"""
+
 import csv, json, os, re
 
 SNAKE_RE = re.compile(r'_([a-z])')
 
 def camel(s):
+    """下划线转驼峰：completion_rate -> completionRate"""
     return SNAKE_RE.sub(lambda m: m.group(1).upper(), s)
 
+# CSV 文件配置：(相对路径, JSON 顶层 key, 列名→类型映射)
 FILES = [
-    ("results/completion_rate_by_category.csv", "completionCategory",
+    ("结果数据/completion_rate_by_category.csv", "completionCategory",
      {"tag_name": str, "total_plays": int, "completion_rate": float}),
-    ("results/retention.csv", "retention",
+    ("结果数据/retention.csv", "retention",
      {"report_date": str, "dau": int, "day1_retention": float,
       "day7_retention": float, "day30_retention": float}),
-    ("results/hot_ranking.csv", "hotRanking",
+    ("结果数据/hot_ranking.csv", "hotRanking",
      {"rank_no": int, "video_id": int, "hot_score": float, "dt": str}),
-    ("results/influencer.csv", "influencer",
+    ("结果数据/influencer.csv", "influencer",
      {"rank_no": int, "uploader_id": int, "total_plays": int,
       "avg_completion": float, "avg_interaction": float, "influence_score": float}),
-    ("results/time_period_analysis.csv", "timePeriod",
+    ("结果数据/time_period_analysis.csv", "timePeriod",
      {"time_period": str, "play_count": int, "avg_watch_ratio": float}),
-    ("results/completion_rate_by_author.csv", "completionAuthor",
+    ("结果数据/completion_rate_by_author.csv", "completionAuthor",
      {"uploader_id": int, "total_plays": int, "avg_completion_rate": float}),
 ]
 
 def load_csv(path, types):
+    """读取 CSV 并按类型映射转换为 dict 列表"""
     rows = []
     skipped_cols = set()
     with open(path, encoding="utf-8") as f:

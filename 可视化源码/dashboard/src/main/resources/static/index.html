@@ -73,7 +73,8 @@ API.get('/hot-ranking').then(r => {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '热度分' },
-        yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse() },
+        grid: { left: 70 },
+        yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
         series: [{
             type: 'bar', data: data.map(d => d.hotScore).reverse(),
             itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#f09b22'},{offset:1,color:'#f56565'}]) }
@@ -88,7 +89,8 @@ API.get('/influencer').then(r => {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '影响力分' },
-        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        grid: { left: 100 },
+        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
         series: [{
             type: 'bar', data: data.map(d => d.influenceScore).reverse(),
             itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#48bb78'},{offset:1,color:'#38b2ac'}]) }
@@ -123,7 +125,8 @@ API.get('/completion/author').then(r => {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '完播率', axisLabel: { formatter: '{value}%' } },
-        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        grid: { left: 100 },
+        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
         series: [{
             type: 'bar', data: data.map(d => (d.avgCompletionRate * 100).toFixed(1)).reverse(),
             itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#9f7aea'},{offset:1,color:'#667eea'}]) }

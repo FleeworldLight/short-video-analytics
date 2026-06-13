@@ -3,20 +3,32 @@ set -e
 
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
-echo "=========================================="
-echo "  短视频平台内容分析系统 - 全流程执行脚本"
-echo "=========================================="
+echo "短视频平台内容分析系统 - 全流程执行脚本"
 echo ""
 
-# ========== Step 1: Start cluster ==========
-echo "=== Step 1: Starting Docker cluster ==="
+# 步骤0：准备原始数据样本（前1000行）
+echo "步骤0：准备原始数据样本（前1000行）"
+SAMPLE_FILE="$ROOT_DIR/数据样例/big_matrix_1000.csv"
+FULL_DATA="$ROOT_DIR/KuaiRec/KuaiRec 2.0/data/big_matrix.csv"
+if [ ! -f "$SAMPLE_FILE" ] && [ -f "$FULL_DATA" ]; then
+  echo "  从全量数据截取前1000行 ..."
+  head -n 1001 "$FULL_DATA" > "$SAMPLE_FILE"
+  echo "  已生成：$(wc -l < "$SAMPLE_FILE") 行（含表头）"
+elif [ -f "$SAMPLE_FILE" ]; then
+  echo "  样本文件已存在，跳过生成"
+else
+  echo "  全量数据不存在（$FULL_DATA），跳过样本生成"
+fi
+
+# 步骤1：启动Docker集群
+echo "步骤1：启动Docker集群"
 cd "$(dirname "$0")"
 docker compose up -d
-echo "Waiting for services to be ready ..."
+echo "  等待服务就绪 ..."
 sleep 25
 
-# ========== Step 2: Init HDFS ==========
-echo "=== Step 2: Init HDFS directories & upload data ==="
+# 步骤2：初始化HDFS目录并上传数据
+echo "步骤2：初始化HDFS目录并上传数据"
 docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_interaction
 docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_item_category
 docker exec namenode hdfs dfs -mkdir -p /data/short_video/raw/ods_user_feature
@@ -25,21 +37,21 @@ docker exec namenode hdfs dfs -mkdir -p /data/short_video/dwd
 docker exec namenode hdfs dfs -mkdir -p /data/short_video/dws
 docker exec namenode hdfs dfs -mkdir -p /data/short_video/ads
 
-docker exec namenode hdfs dfs -put -f /data/samples/big_matrix_sample.csv     /data/short_video/raw/ods_interaction/
+docker exec namenode hdfs dfs -put -f /data/samples/big_matrix_1000.csv     /data/short_video/raw/ods_interaction/
 docker exec namenode hdfs dfs -put -f /data/samples/item_categories_sample.csv /data/short_video/raw/ods_item_category/
 docker exec namenode hdfs dfs -put -f /data/samples/user_features_raw_sample.csv /data/short_video/raw/ods_user_feature/
 docker exec namenode hdfs dfs -put -f /data/samples/item_daily_features_sample.csv /data/short_video/raw/ods_item_daily/
 
-echo "HDFS data uploaded:"
+echo "  HDFS已上传："
 docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
 
-# ========== Step 3: Create tables & clean data ==========
-echo "=== Step 3: Create tables & clean data (ODS -> DWD) ==="
+# 步骤3：建表并清洗数据（ODS → DWD）
+echo "步骤3：建表并清洗数据（ODS → DWD）"
 docker exec hive-server hive -f /scripts/2_create_tables.hql
 docker exec hive-server hive -f /scripts/1_clean_data.hql
 
-# ========== Step 4: Build dim_category ==========
-echo "=== Step 4: Build dimension tables ==="
+# 步骤4：构建维度表
+echo "步骤4：构建维度表"
 docker exec hive-server hive -e "
   INSERT OVERWRITE TABLE dim_category VALUES
     (1, 'Gaming', '娱乐'), (2, 'Music', '艺术'), (5, 'Fashion', '生活'),
@@ -60,8 +72,8 @@ docker exec hive-server hive -e "
   GROUP BY author_id;
 "
 
-# ========== Step 5: KPI calculations ==========
-echo "=== Step 5: KPI calculations ==="
+# 步骤5：KPI指标计算
+echo "步骤5：KPI指标计算"
 docker exec hive-server hive -f /scripts/3_kpi_completion_rate.hql
 docker exec hive-server hive -f /scripts/4_kpi_retention.hql
 docker exec hive-server hive -f /scripts/5_kpi_hot_ranking.hql
@@ -79,8 +91,8 @@ docker exec hive-server hive -e "
   ORDER BY play_count DESC;
 "
 
-# ========== Step 5b: Build dim_date ==========
-echo "=== Step 5b: Build dim_date table ==="
+# 步骤5b：构建日期维度表
+echo "步骤5b：构建日期维度表"
 docker exec hive-server hive -e "
   INSERT OVERWRITE TABLE dim_date
   SELECT
@@ -102,8 +114,8 @@ docker exec hive-server hive -e "
   ORDER BY date_id;
 "
 
-# ========== Step 5c: Weekly hot ranking ==========
-echo "=== Step 5c: Weekly hot ranking ==="
+# 步骤5c：周度热度排行
+echo "步骤5c：周度热度排行"
 docker exec hive-server hive -e "
   SELECT ROW_NUMBER() OVER (ORDER BY hot_score DESC) AS rank_no,
          video_id, hot_score, week_start
@@ -126,7 +138,7 @@ docker exec hive-server hive -e "
   LIMIT 50;
 " | tr '\011' ',' | tail -n +2 > "$ROOT_DIR/结果数据/hot_ranking_weekly.csv"
 
-echo "ADS table row counts:"
+echo "  ADS表行数统计："
 docker exec hive-server hive -e "
   SELECT 'completion_rate_by_category' AS tbl, COUNT(*) FROM ads_completion_rate_by_category
   UNION ALL
@@ -141,11 +153,10 @@ docker exec hive-server hive -e "
   SELECT 'time_period_analysis',        COUNT(*) FROM ads_time_period_analysis;
 "
 
-# ========== Step 6: Export ADS to CSV files ==========
-echo "=== Step 6: Export ADS tables to CSV ==="
+# 步骤6：导出ADS结果表为CSV
+echo "步骤6：导出ADS结果表为CSV"
 rm -f "$ROOT_DIR/结果数据"/*.csv
 
-# Table-to-filename mapping (short names matching DashboardService)
 ADS_MAP=(
   "completion_rate_by_category:completion_rate_by_category"
   "completion_rate_by_author:completion_rate_by_author"
@@ -158,20 +169,30 @@ ADS_MAP=(
 for entry in "${ADS_MAP[@]}"; do
   tbl="${entry%%:*}"
   csv_name="${entry#*:}"
-  echo "Exporting $tbl -> $csv_name.csv ..."
+  echo "  导出 $tbl → $csv_name.csv ..."
   docker exec hive-server hive -e "SELECT * FROM ads_$tbl" \
     | tr '\011' ',' \
     | tail -n +2 \
     > "$ROOT_DIR/结果数据/$csv_name.csv"
 done
 
-echo "CSV files generated:"
-ls -la "$ROOT_DIR/结果数据/"*.csv 2>/dev/null || echo "  (empty)"
+# 步骤6b：导出DWD清洗样例（前100行）
+echo "步骤6b：导出DWD清洗样例（前100行）"
+docker exec hive-server hive -e "
+  SET hive.cli.print.header=true;
+  SELECT *
+  FROM dwd_interaction_detail
+  LIMIT 100;
+" | tr '\011' ',' > "$ROOT_DIR/结果数据/dwd_sample.csv"
+echo "  DWD样例已导出到：结果数据/dwd_sample.csv"
 
-# ========== Step 7: Export to MySQL ==========
-echo "=== Step 7: Import into MySQL ==="
+echo "  生成的CSV文件："
+ls -la "$ROOT_DIR/结果数据/"*.csv 2>/dev/null || echo "  (空)"
 
-echo "Waiting for MySQL ..."
+# 步骤7：导入MySQL
+echo "步骤7：导入MySQL"
+
+echo "  等待MySQL就绪 ..."
 sleep 10
 
 docker exec mysql mysql -h localhost -p123456 -e "
@@ -210,13 +231,13 @@ for entry in "${ADS_MAP[@]}"; do
   tbl="${entry%%:*}"
   csv_name="${entry#*:}"
   CSV="/import/$csv_name.csv"
-  echo "Loading $CSV into ads_$tbl ..."
+  echo "  导入 $CSV 到 ads_$tbl ..."
   docker exec mysql mysql -h localhost -p123456 short_video \
     -e "LOAD DATA LOCAL INFILE '$CSV' INTO TABLE ads_$tbl FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n';"
 done
 
 echo ""
-echo "Verifying MySQL data:"
+echo "  验证MySQL数据："
 docker exec mysql mysql -h localhost -p123456 -e "
   USE short_video;
   SELECT 'completion_rate_by_category', COUNT(*) FROM ads_completion_rate_by_category
@@ -227,14 +248,21 @@ docker exec mysql mysql -h localhost -p123456 -e "
   UNION ALL SELECT 'time_period_analysis', COUNT(*) FROM ads_time_period_analysis;
 "
 
+# 步骤8：启动可视化面板
+echo "步骤8：启动可视化面板"
+cd "$ROOT_DIR/可视化源码/dashboard"
+nohup mvn spring-boot:run -DskipTests > "$ROOT_DIR/可视化源码/dashboard/dashboard.log" 2>&1 &
+echo "  面板启动中，日志：可视化源码/dashboard/dashboard.log"
+echo "  等待 15 秒后检查状态 ..."
+sleep 15
+if curl -s http://localhost:8080/api/completion/category > /dev/null 2>&1; then
+  echo "  面板已启动成功！"
+  echo "  访问地址：http://$(hostname -I | awk '{print $1}'):8080"
+else
+  echo "  面板可能还在启动中，请稍后手动检查："
+  echo "  cat $ROOT_DIR/可视化源码/dashboard/dashboard.log"
+fi
+cd "$ROOT_DIR"
+
 echo ""
-echo "=========================================="
-echo "  Pipeline complete!"
-echo "=========================================="
-echo ""
-echo "Next: start the dashboard"
-echo ""
-echo "  cd $ROOT_DIR/可视化源码/dashboard"
-echo "  mvn spring-boot:run"
-echo ""
-echo "  Then open http://localhost:8080"
+echo "全流程执行完成！"

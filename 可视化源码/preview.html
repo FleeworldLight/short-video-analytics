@@ -66,14 +66,14 @@ const MOCK = {
     hotRanking: (() => {
         const r = [];
         for (let i = 1; i <= 30; i++) {
-            r.push({ rankNo: i, videoId: Math.floor(9000 + Math.random() * 1000), hotScore: +(3.5 - i * 0.08 + Math.random() * 0.1).toFixed(4), dt: '20200720' });
+            r.push({ rankNo: i, videoId: 9000 + i, hotScore: +(3.5 - i * 0.08 + Math.random() * 0.1).toFixed(4), dt: '20200720' });
         }
         return r;
     })(),
     influencer: (() => {
         const r = [];
         for (let i = 1; i <= 20; i++) {
-            r.push({ rankNo: i, uploaderId: Math.floor(100 + Math.random() * 900), totalPlays: Math.round(5000 - i * 200 + Math.random() * 500), avgCompletion: +(0.55 - i * 0.012 + Math.random() * 0.02).toFixed(4), avgInteraction: +(0.35 - i * 0.008 + Math.random() * 0.02).toFixed(4), influenceScore: +(2.8 - i * 0.08 + Math.random() * 0.1).toFixed(4) });
+            r.push({ rankNo: i, uploaderId: 100 + i, totalPlays: Math.round(5000 - i * 200 + Math.random() * 500), avgCompletion: +(0.55 - i * 0.012 + Math.random() * 0.02).toFixed(4), avgInteraction: +(0.35 - i * 0.008 + Math.random() * 0.02).toFixed(4), influenceScore: +(2.8 - i * 0.08 + Math.random() * 0.1).toFixed(4) });
         }
         return r;
     })(),
@@ -88,7 +88,7 @@ const MOCK = {
     completionAuthor: (() => {
         const r = [];
         for (let i = 1; i <= 20; i++) {
-            r.push({ uploaderId: Math.floor(100 + Math.random() * 900), totalPlays: Math.round(3000 - i * 120 + Math.random() * 300), avgCompletionRate: +(0.65 - i * 0.018 + Math.random() * 0.02).toFixed(4) });
+            r.push({ uploaderId: 200 + i, totalPlays: Math.round(3000 - i * 120 + Math.random() * 300), avgCompletionRate: +(0.65 - i * 0.018 + Math.random() * 0.02).toFixed(4) });
         }
         return r;
     })()
@@ -130,7 +130,8 @@ const MOCK = {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '热度分' },
-        yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse() },
+        grid: { left: 70 },
+        yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
         series: [{ type: 'bar', data: data.map(d => d.hotScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#f09b22'},{offset:1,color:'#f56565'}]) } }]
     });
 })();
@@ -142,7 +143,8 @@ const MOCK = {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '影响力分' },
-        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        grid: { left: 100 },
+        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
         series: [{ type: 'bar', data: data.map(d => d.influenceScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#48bb78'},{offset:1,color:'#38b2ac'}]) } }]
     });
 })();
@@ -166,7 +168,8 @@ const MOCK = {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '完播率', axisLabel: { formatter: '{value}%' } },
-        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse() },
+        grid: { left: 100 },
+        yAxis: { type: 'category', data: data.map(d => '创作者' + d.uploaderId).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
         series: [{ type: 'bar', data: data.map(d => (d.avgCompletionRate * 100).toFixed(1)).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#9f7aea'},{offset:1,color:'#667eea'}]) } }]
     });
 })();

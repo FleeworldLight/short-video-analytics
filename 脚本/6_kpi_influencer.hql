@@ -1,3 +1,8 @@
+-- KPI 4: 创作者影响力指数（Top 20）
+-- 综合评分 = 完播率×0.25 + 点赞率×0.15 + 评论率×0.15 +
+--            分享率×0.10 + 播放量对数×0.35
+-- 同时输出 avg_completion（平均完播率）和 avg_interaction（交互率均值）
+
 SET hive.exec.dynamic.partition = true;
 SET hive.exec.dynamic.partition.mode = nonstrict;
 

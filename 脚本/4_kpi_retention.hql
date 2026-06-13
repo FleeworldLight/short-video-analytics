@@ -1,9 +1,18 @@
+-- KPI 2: 用户留存率（DAU / 次日留存 / 7日留存 / 30日留存）
+-- 计算逻辑：
+--   1. 从 DWD 提取活跃用户及活跃日期
+--   2. 以日期为基准，统计当日 DAU
+--   3. 统计该日活跃用户中，第1/7/30天再次活跃的人数
+--   4. 留存率 = 再次活跃数 / DAU
+
 WITH active_users AS (
+  -- 活跃用户去重：user_id + 活跃日期
   SELECT DISTINCT user_id,
     CAST(CONCAT(SUBSTR(dt,1,4), '-', SUBSTR(dt,5,2), '-', SUBSTR(dt,7,2)) AS DATE) AS event_date
   FROM dwd_interaction_detail
 ),
 daily_active AS (
+  -- 对每个日期，统计 DAU 及后续留存活跃用户数
   SELECT
     a.event_date,
     COUNT(DISTINCT a.user_id) AS dau,
