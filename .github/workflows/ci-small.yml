@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: 下载 KuaiRec 数据集
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "正在从 Zenodo 下载 KuaiRec 2.0 ..."
           wget -q -O KuaiRec.zip \
@@ -43,19 +43,19 @@ jobs:
           ls -la kuairc/data/
 
       - name: 下载 PostgreSQL JDBC 驱动
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           curl -sL -o docker/postgresql-42.5.1.jar \
             "https://jdbc.postgresql.org/download/postgresql-42.5.1.jar"
           ls -lh docker/postgresql-42.5.1.jar
 
       - name: 创建挂载目录
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           mkdir -p "结果数据"
 
       - name: 启动 Docker 集群
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           docker compose -f docker/docker-compose.yml up -d \
             namenode datanode resourcemanager nodemanager \
@@ -64,15 +64,20 @@ jobs:
           docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
       - name: 等待 HDFS 就绪并创建目录
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "等待 HDFS 就绪 ..."
           for i in $(seq 1 30); do
-            if docker exec namenode hdfs dfsadmin -report 2>&1 > /dev/null; then
+            if docker exec namenode hdfs dfsadmin -report > /dev/null 2>&1; then
               echo "HDFS 就绪，尝试次数：${i}"
               break
             fi
             echo "第 $i/30 次尝试，等待 10s ..."
+            if [ "$i" -eq 30 ]; then
+              echo "HDFS 启动失败（超过 30 次尝试）"
+              docker logs namenode --tail 20 2>&1
+              exit 1
+            fi
             sleep 10
           done
           docker exec namenode hdfs dfs -mkdir -p \
@@ -89,7 +94,7 @@ jobs:
           docker exec namenode hdfs dfs -ls -R /
 
       - name: 上传 KuaiRec 数据到 HDFS
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "上传 small_matrix.csv ..."
           docker cp kuairc/data/small_matrix.csv namenode:/tmp/
@@ -119,21 +124,49 @@ jobs:
           echo "HDFS 上传完成："
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
 
+      - name: 等待 HiveMetastore 就绪
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
+        run: |
+          echo "等待 HiveMetastore 就绪 ..."
+          for i in $(seq 1 30); do
+            if docker exec hive-metastore \
+              bash -c "nc -z localhost 9083" > /dev/null 2>&1; then
+              echo "HiveMetastore 就绪，尝试次数：${i}"
+              break
+            fi
+            echo "第 $i/30 次尝试，等待 10s ..."
+            if [ "$i" -eq 30 ]; then
+              echo "HiveMetastore 启动失败（超过 30 次尝试）"
+              docker logs hive-metastore --tail 30 2>&1
+              docker logs hive-server --tail 10 2>&1 || true
+              exit 1
+            fi
+            sleep 10
+          done
+
       - name: 等待 HiveServer2 就绪
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "等待 HiveServer2 就绪 ..."
           MAX=36
           for i in $(seq 1 $MAX); do
             if docker exec hive-server \
               beeline -u jdbc:hive2://localhost:10000 -n hive \
-              -e "SHOW DATABASES;" 2>&1 > /dev/null; then
+              -e "SHOW DATABASES;" > /dev/null 2>&1; then
               echo "HiveServer2 就绪，尝试次数：${i}"
               break
             fi
             if [ "$i" -eq "$MAX" ]; then
               echo "HiveServer2 启动失败（超过 ${MAX} 次尝试）"
-              docker logs hive-server --tail 20 2>&1
+              echo ""
+              echo "=== hive-server 日志（末尾 30 行）==="
+              docker logs hive-server --tail 30 2>&1
+              echo ""
+              echo "=== hive-metastore 日志（末尾 20 行）==="
+              docker logs hive-metastore --tail 20 2>&1
+              echo ""
+              echo "=== 所有容器状态 ==="
+              docker ps -a --format "table {{.Names}}\t{{.Status}}"
               exit 1
             fi
             echo "第 $i/$MAX 次尝试，等待 10s ..."
@@ -142,21 +175,21 @@ jobs:
           done
 
       - name: 创建 Hive 表
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "创建 ODS/DWD/DWS/ADS 表 ..."
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/2_create_tables.hql 2>&1
           echo "表创建完成"
 
       - name: 数据清洗（ODS → DWD）
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "执行 ETL：ODS → DWD ..."
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/1_clean_data.hql 2>&1
           echo "DWD 加载完成"
 
       - name: 构建维度表
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "构建 dim_category 和 dim_creator ..."
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "
@@ -179,7 +212,7 @@ jobs:
           echo "维度表构建完成"
 
       - name: 执行 KPI 指标计算
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "KPI 1：完播率计算 ..."
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -f /scripts/3_kpi_completion_rate.hql 2>&1
@@ -202,7 +235,7 @@ jobs:
           echo "KPI 计算完成"
 
       - name: 验证 ADS 表数据
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "ADS 表行数统计："
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive -e "
@@ -215,7 +248,7 @@ jobs:
           " 2>&1
 
       - name: 导出 ADS 指标为 CSV
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "导出 ADS 到 CSV ..."
           for pair in "completion_rate_by_category:completion_rate_by_category" \
@@ -234,7 +267,7 @@ jobs:
           ls -lh "结果数据/"
 
       - name: 导出 DWD 清洗样例（前100行）
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: |
           echo "导出 DWD 清洗样例（前100行）..."
           docker exec hive-server beeline -u jdbc:hive2://localhost:10000 -n hive \
@@ -243,11 +276,11 @@ jobs:
           echo "已导出：结果数据/dwd_sample.csv"
 
       - name: 转换 CSV 为 JSON（供 Pages 使用）
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         run: python 脚本/csv_to_json.py
 
       - name: 上传结果文件
-        if: ${{ !inputs.skip-kpi }}
+        if: ${{ github.event_name == 'push' || !inputs.skip-kpi }}
         uses: actions/upload-artifact@v4
         with:
           name: results

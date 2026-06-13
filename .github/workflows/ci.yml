@@ -66,11 +66,16 @@ jobs:
         run: |
           echo "等待 HDFS 就绪 ..."
           for i in $(seq 1 30); do
-            if docker exec namenode hdfs dfsadmin -report 2>&1 > /dev/null; then
+            if docker exec namenode hdfs dfsadmin -report > /dev/null 2>&1; then
               echo "HDFS 就绪，尝试次数：${i}"
               break
             fi
             echo "第 $i/30 次尝试，等待 10s ..."
+            if [ "$i" -eq 30 ]; then
+              echo "HDFS 启动失败（超过 30 次尝试）"
+              docker logs namenode --tail 20 2>&1
+              exit 1
+            fi
             sleep 10
           done
           docker exec namenode hdfs dfs -mkdir -p \
@@ -117,6 +122,26 @@ jobs:
           echo "HDFS 上传完成："
           docker exec namenode hdfs dfs -ls -R /data/short_video/raw/
 
+      - name: 等待 HiveMetastore 就绪
+        if: ${{ !inputs.skip-kpi }}
+        run: |
+          echo "等待 HiveMetastore 就绪 ..."
+          for i in $(seq 1 30); do
+            if docker exec hive-metastore \
+              bash -c "nc -z localhost 9083" > /dev/null 2>&1; then
+              echo "HiveMetastore 就绪，尝试次数：${i}"
+              break
+            fi
+            echo "第 $i/30 次尝试，等待 10s ..."
+            if [ "$i" -eq 30 ]; then
+              echo "HiveMetastore 启动失败（超过 30 次尝试）"
+              docker logs hive-metastore --tail 30 2>&1
+              docker logs hive-server --tail 10 2>&1 || true
+              exit 1
+            fi
+            sleep 10
+          done
+
       - name: 等待 HiveServer2 就绪
         if: ${{ !inputs.skip-kpi }}
         run: |
@@ -125,13 +150,21 @@ jobs:
           for i in $(seq 1 $MAX); do
             if docker exec hive-server \
               beeline -u jdbc:hive2://localhost:10000 -n hive \
-              -e "SHOW DATABASES;" 2>&1 > /dev/null; then
+              -e "SHOW DATABASES;" > /dev/null 2>&1; then
               echo "HiveServer2 就绪，尝试次数：${i}"
               break
             fi
             if [ "$i" -eq "$MAX" ]; then
               echo "HiveServer2 启动失败（超过 ${MAX} 次尝试）"
-              docker logs hive-server --tail 20 2>&1
+              echo ""
+              echo "=== hive-server 日志（末尾 30 行）==="
+              docker logs hive-server --tail 30 2>&1
+              echo ""
+              echo "=== hive-metastore 日志（末尾 20 行）==="
+              docker logs hive-metastore --tail 20 2>&1
+              echo ""
+              echo "=== 所有容器状态 ==="
+              docker ps -a --format "table {{.Names}}\t{{.Status}}"
               exit 1
             fi
             echo "第 $i/$MAX 次尝试，等待 10s ..."
