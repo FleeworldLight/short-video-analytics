@@ -244,4 +244,31 @@ UNION ALL SELECT 'time_period_analysis', COUNT(*) FROM ads_time_period_analysis;
 "
 
 echo ""
+echo "步骤9：启动可视化仪表板"
+
+# 将 CSV 结果转为 docs/data.json（前后端共用数据）
+python3 "$ROOT_DIR/脚本/csv_to_json.py"
+
+# 启动 Spring Boot 仪表板
+echo ""
+echo "  启动 Spring Boot 仪表板（端口 8080）..."
+DASHBOARD_PID_FILE="/tmp/short_video_dashboard.pid"
+if [ -f "$DASHBOARD_PID_FILE" ]; then
+  kill $(cat "$DASHBOARD_PID_FILE") 2>/dev/null || true
+  sleep 2
+fi
+cd "$ROOT_DIR/可视化源码/dashboard"
+nohup mvn spring-boot:run -q > /tmp/short_video_dashboard.log 2>&1 &
+echo $! > "$DASHBOARD_PID_FILE"
+
+# 等待启动完成
+echo "等待仪表板启动..."
+sleep 10
+
+echo "  仪表板: http://localhost:8080"
+echo "  （后台运行中，PID: $(cat $DASHBOARD_PID_FILE)，日志: /tmp/short_video_dashboard.log）"
+echo "  关闭请执行: kill $(cat $DASHBOARD_PID_FILE)"
+echo ""
+
+echo ""
 echo "流水线执行完成！"
