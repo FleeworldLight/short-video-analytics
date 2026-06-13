@@ -108,27 +108,46 @@ function chart1() {
     });
 }
 
+function toDate(s) {
+    return new Date(s.includes('-') ? s : s.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
+}
+
 function chart2() {
-    const data = DATA.retention.filter(d => d.reportDate && d.reportDate !== 'NULL');
+    let data = DATA.retention.filter(d => d.reportDate && d.reportDate !== 'NULL');
+    data = data.filter(d => d.dau >= 10);
     const avgDau = data.length ? data.reduce((s, d) => s + d.dau, 0) / data.length : 0;
     const tip = document.getElementById('chart2').parentNode.querySelector('.chart-tip');
     if (tip) tip.remove();
+    if (data.length === 0) {
+        const el = document.createElement('div');
+        el.className = 'chart-tip';
+        el.textContent = '⚠ 所有日期 DAU 均小于 10，留存率曲线不展示';
+        document.getElementById('chart2').parentNode.appendChild(el);
+        return;
+    }
     if (avgDau < 10) {
         const el = document.createElement('div');
         el.className = 'chart-tip';
         el.textContent = '⚠ 数据过于稀疏 (平均 DAU < 10)，留存率曲线参考价值有限';
         document.getElementById('chart2').parentNode.appendChild(el);
     }
+    const dates = data.map(d => toDate(d.reportDate));
+    const maxDate = new Date(Math.max(...dates));
+    const chartData = data.map(d => {
+        const dt = toDate(d.reportDate);
+        const daysToEnd = (maxDate - dt) / (1000 * 60 * 60 * 24);
+        return { ...d, day30Retention: daysToEnd < 30 ? null : d.day30Retention };
+    });
     const chart = echarts.init(document.getElementById('chart2'));
     chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['次日留存', '7日留存', '30日留存'] },
-        xAxis: { type: 'category', data: data.map(d => d.reportDate) },
+        xAxis: { type: 'category', data: chartData.map(d => d.reportDate) },
         yAxis: { type: 'value', name: '留存率', axisLabel: { formatter: '{value}%' } },
         series: [
-            { name: '次日留存', type: 'line', data: data.map(d => (d.day1Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#667eea' }, areaStyle: { opacity: 0.1 } },
-            { name: '7日留存', type: 'line', data: data.map(d => (d.day7Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#f09b22' }, areaStyle: { opacity: 0.1 } },
-            { name: '30日留存', type: 'line', data: data.map(d => (d.day30Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#52c41a' }, areaStyle: { opacity: 0.1 } }
+            { name: '次日留存', type: 'line', data: chartData.map(d => (d.day1Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#667eea' }, areaStyle: { opacity: 0.1 } },
+            { name: '7日留存', type: 'line', data: chartData.map(d => (d.day7Retention * 100).toFixed(1)), smooth: true, lineStyle: { color: '#f09b22' }, areaStyle: { opacity: 0.1 } },
+            { name: '30日留存', type: 'line', data: chartData.map(d => d.day30Retention !== null ? (d.day30Retention * 100).toFixed(1) : null), smooth: true, connectNulls: false, lineStyle: { color: '#52c41a' }, areaStyle: { opacity: 0.1 } }
         ]
     });
 }
@@ -140,7 +159,7 @@ function chart3() {
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: '热度分' },
         grid: { left: 50 },
-        yAxis: { type: 'category', data: data.map(d => '#' + d.rankNo).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
+        yAxis: { type: 'category', data: data.map(d => '#' + d.videoId).reverse(), axisLabel: { interval: 0, fontSize: 11 } },
         series: [{ type: 'bar', data: data.map(d => d.hotScore).reverse(), itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0, [{offset:0,color:'#f09b22'},{offset:1,color:'#f56565'}]) } }]
     });
 }

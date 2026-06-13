@@ -1,6 +1,8 @@
-name: CI - 大矩阵 + Pages 部署
+name: CI - 小矩阵 + Pages 部署
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       skip-kpi:
@@ -89,9 +91,9 @@ jobs:
       - name: 上传 KuaiRec 数据到 HDFS
         if: ${{ !inputs.skip-kpi }}
         run: |
-          echo "上传 big_matrix.csv ..."
-          docker cp kuairc/data/big_matrix.csv namenode:/tmp/
-          docker exec namenode hdfs dfs -put -f /tmp/big_matrix.csv \
+          echo "上传 small_matrix.csv ..."
+          docker cp kuairc/data/small_matrix.csv namenode:/tmp/
+          docker exec namenode hdfs dfs -put -f /tmp/small_matrix.csv \
             /data/short_video/raw/ods_interaction/
 
           echo "上传 item_categories.csv ..."
